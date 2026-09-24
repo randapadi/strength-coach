@@ -1,7 +1,7 @@
 // Plan generator. Pure functions: profile + adjustments in, plan out. No DOM, no storage, no network,
 // so it runs instantly on the phone and can be tested on its own (see test.html).
 (function(){
-const {EXERCISES,WARM,MOVES}=window.SC;
+const {EXERCISES,WARM,MOVES,CREATORS}=window.SC;
 const BY_ID=Object.fromEntries(EXERCISES.map(x=>[x.id,x]));
 
 const FOCUS={
@@ -245,5 +245,49 @@ function calendarICS(p,week,{url,now=new Date(),uid="sc"}={}){   // uid: stable 
   return lines.map(fold).join("\r\n")+"\r\n";
 }
 
-window.SC.engine={dailyMoves,calendarICS,SLOT_TIMES,DEFAULT_TIME,FOCUS,DAY_NAMES,GEAR_NAMES,BY_ID,newAdjust,buildWeek,buildSession,applyFeedback,diffSessions,focusOrder};
+// ---------- creator matching ----------
+const GOAL_STYLES={strength:["strength"],glutes:["lower","strength"],posture:["yoga","pilates","mobility"],core:["pilates","core"],mobility:["yoga","mobility"],feet:["yoga","walk"]};
+const FOCUS_QUERY={L:"lower body",U:"upper body",F:"full body",C:"core"};
+// day = {mins, focus, rest, slot}; prefs = {saved:[ids], hidden:[ids]}
+// Returns three lists: workout creators ranked for this person, kid-friendly channels (households with kids only),
+// and physical-therapy channels (only when they picked knee, back, shoulder or neck).
+function matchCreators(p,day={},prefs={}){
+  const saved=prefs.saved||[], hidden=prefs.hidden||[], goals=p.goals||[], lim=p.limits||[], kids=p.kids||[], gear=p.gear||[];
+  const lvl=p.caution?1:({new:1,some:2,regular:3}[p.exp]||2), mins=day.mins||p.mins||30;
+  const aches=["knee","back","shoulder","neck"].filter(l=>lim.includes(l));
+  const GOAL_WORDS={strength:"strength",glutes:"glutes and legs",posture:"posture",core:"core",mobility:"mobility",feet:"balance"};
+  const entry=(c,s,why)=>{
+    const st=t=>c.styles.includes(t);
+    const q=st("kids")?"kids yoga":st("rehab")?(aches[0]?aches[0]+" pain":"mobility"):st("walk")&&!st("strength")?`${mins} minute walk`
+      :(st("yoga")||st("pilates"))&&!st("strength")?`${mins} minute ${st("pilates")?"pilates":"yoga"}`:`${mins} minute ${day.rest?"stretch":FOCUS_QUERY[day.focus]||"workout"}`;
+    if(saved.includes(c.id)) why.unshift("Saved by you");
+    return {c,score:s,reasons:why.slice(0,3),url:`https://www.youtube.com/@${c.handle}`,videoUrl:`https://www.youtube.com/@${c.handle}/search?query=${encodeURIComponent(q)}`,query:q,saved:saved.includes(c.id)};
+  };
+  const sort=a=>a.sort((x,y)=>(y.saved-x.saved)||y.score-x.score||x.c.name.localeCompare(y.c.name));   // saved ones always first
+  const workout=[], kidList=[], rehab=[];
+  for(const c of CREATORS){
+    if(hidden.includes(c.id)) continue;
+    const has=t=>c.tags.includes(t), st=t=>c.styles.includes(t), why=[];
+    if(st("kids")){ if(kids.some(k=>k==="kids"||k==="little")) kidList.push(entry(c,kids.includes("kids")?2:1,[kids.includes("kids")?"Your kids can join in":"Good once your little one is 3 or so"])); continue; }
+    if(st("rehab")){ if(aches.length) rehab.push(entry(c,(lvl>=c.lvl[0]?2:0)+(has("low")?1:0),[`Physical therapist tips for ${aches.join(" and ")} pain`])); continue; }
+    let s=0;
+    const hit=goals.filter(g=>(GOAL_STYLES[g]||[]).some(st));
+    if(hit.length){s+=3*hit.length;why.push(`Fits your ${hit.length>1?"goals":"goal"}: ${hit.map(g=>GOAL_WORDS[g]).join(", ")}`);}
+    if(lvl<c.lvl[0]) s-=6; else if(lvl<=c.lvl[1]){s+=2; if(lvl===1&&c.lvl[0]===1) why.push("Beginner-friendly");}
+    if(mins>=c.len[0]-2&&mins<=c.len[1]+5){s+=2;why.push(`Has ${mins}-minute videos`);} else if(c.len[0]>mins+10) s-=3;
+    if(c.eq.includes("db")){ if(gear.includes("db")){s+=2;why.push("Uses the dumbbells you have");} else s-=14; }
+    else why.push("No equipment needed");
+    if(lim.includes("core")){ if(has("pre")){s+=5;why.push("Pre- and postnatal qualified");} if(st("hiit")) s-=4; }
+    if(aches.length){ if(has("pt")){s+=3;why.push("Physical therapists on the team");} if(has("low")) s+=2; if(st("hiit")) s-=3; }
+    if(lim.includes("floor")&&st("pilates")) s-=3;
+    if(has("mom")&&kids.length){s+=2;why.push("Made with busy moms in mind");}
+    if(day.slot==="late"){ if(has("quiet")){s+=2;why.push("Quiet enough for after bedtime");} if(st("hiit")) s-=5; }   // jumping wakes kids; dumbbell work is fine
+    if(p.walk==="low"&&st("walk")){s+=2;why.push("Great for adding more walking");}
+    if(has("low")&&(p.exp==="new"||p.caution)) s+=1;
+    workout.push(entry(c,s,why));
+  }
+  return {workout:sort(workout),kids:sort(kidList),rehab:sort(rehab)};
+}
+
+window.SC.engine={matchCreators,dailyMoves,calendarICS,SLOT_TIMES,DEFAULT_TIME,FOCUS,DAY_NAMES,GEAR_NAMES,BY_ID,newAdjust,buildWeek,buildSession,applyFeedback,diffSessions,focusOrder};
 })();

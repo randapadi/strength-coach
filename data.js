@@ -131,6 +131,33 @@ const MOVES=[
  {id:"class",t:"Try a class",d:"Dance, climbing or yoga, ideally with a friend.",min:60,days:"off",nokids:1}
 ];
 
+// Creators for the "Creators" tab. Handles were checked against each channel's page (Sept 2026);
+// blurbs paraphrase how each channel describes itself. The app is not affiliated with any of them.
+// styles: strength, lower, walk, dance, cardio, hiit, yoga, pilates, core, mobility, kids, rehab
+// lvl: [easiest, hardest] level they cater for (1–3). eq: gear most videos need ("db" = dumbbells).
+// len: typical video length in minutes [min, max]. tags: low = low impact, quiet = OK while others sleep,
+// kids = kids can join in, mom = made with busy moms in mind, pre = pre/postnatal qualified, pt = physical therapists involved
+const CREATORS=[
+ {id:"growwithjo",name:"growwithjo",handle:"growwithjo",blurb:"Beginner-friendly home workouts, including walking and dance cardio, for women of all abilities.",styles:["walk","dance","cardio"],lvl:[1,2],eq:[],len:[10,45],tags:["low"]},
+ {id:"adriene",name:"Yoga With Adriene",handle:"yogawithadriene",blurb:"Free yoga for all levels and all bodies, from quick stretches to full practices.",styles:["yoga","mobility"],lvl:[1,2],eq:[],len:[5,45],tags:["low","quiet"]},
+ {id:"madfit",name:"MadFit",handle:"MadFit",blurb:"Real-time, at-home workouts for all fitness levels, many short and equipment-free.",styles:["strength","lower","core","hiit","dance"],lvl:[1,3],eq:[],len:[10,30],tags:[]},
+ {id:"girvan",name:"Caroline Girvan",handle:"CarolineGirvan",blurb:"Structured dumbbell strength programs from a certified trainer and pre- and postnatal specialist.",styles:["strength","lower"],lvl:[2,3],eq:["db"],len:[30,60],tags:["pre"]},
+ {id:"heather",name:"Heather Robertson",handle:"HeatherRobertsoncom",blurb:"Strength and HIIT workouts and free programs from a certified trainer and nutrition coach.",styles:["strength","lower","hiit","core"],lvl:[2,3],eq:["db"],len:[20,45],tags:[]},
+ {id:"sydney",name:"Sydney Cummings Houdyshell",handle:"SydneyCummingsHoudyshell",blurb:"Dumbbell strength workouts with a certified trainer who trains alongside you.",styles:["strength","lower","core"],lvl:[2,3],eq:["db"],len:[30,60],tags:[]},
+ {id:"fitnessblender",name:"Fitness Blender",handle:"fitnessblender",blurb:"At-home workouts made by certified trainers and physical therapists, across every length and level.",styles:["strength","lower","cardio","core","mobility","hiit"],lvl:[1,3],eq:[],len:[10,60],tags:["low","pt"]},
+ {id:"nicole",name:"Move With Nicole",handle:"MoveWithNicole",blurb:"Pilates and yoga from a certified instructor. Low impact, with lots of core work.",styles:["pilates","core","yoga","mobility"],lvl:[1,2],eq:[],len:[10,40],tags:["low","quiet"]},
+ {id:"blogilates",name:"Blogilates",handle:"blogilates",blurb:"Cassey Ho's pilates-inspired workouts, known for short, upbeat core and toning routines.",styles:["pilates","core","lower"],lvl:[1,2],eq:[],len:[5,30],tags:["low","quiet"]},
+ {id:"pamela",name:"Pamela Reif",handle:"PamelaRe",blurb:"Short, follow-along home workouts that need no equipment.",styles:["strength","lower","core","hiit","dance"],lvl:[2,3],eq:[],len:[10,20],tags:[]},
+ {id:"cosmic",name:"Cosmic Kids Yoga",handle:"CosmicKidsYoga",blurb:"Story-style yoga and mindfulness for kids, used by families and classrooms.",styles:["kids","yoga"],lvl:[1,1],eq:[],len:[5,30],tags:["kids","low"]},
+ {id:"nml",name:"Nourish Move Love",handle:"nourishmovelove",blurb:"Lindsey Bomgren, a mom of three and pre- and postnatal trainer, makes quick, effective home workouts for busy moms.",styles:["strength","lower","core"],lvl:[1,3],eq:["db"],len:[15,40],tags:["mom","pre"]},
+ {id:"lucy",name:"Lucy Wyndham-Read",handle:"lucywyndhamread",blurb:"Simple, short home workouts from a trainer with 30+ years of experience. Very beginner-friendly.",styles:["walk","strength","core"],lvl:[1,2],eq:[],len:[5,20],tags:["low","quiet"]},
+ {id:"merrick",name:"Tom Merrick",handle:"BodyweightWarrior",blurb:"Practical bodyweight strength and flexibility routines.",styles:["mobility","strength"],lvl:[1,3],eq:[],len:[10,30],tags:["quiet"]},
+ {id:"kassandra",name:"Yoga with Kassandra",handle:"YogawithKassandra",blurb:"Vinyasa and yin yoga classes for all levels. Yin suits winding down at night.",styles:["yoga","mobility"],lvl:[1,2],eq:[],len:[10,60],tags:["low","quiet"]},
+ {id:"juicetoya",name:"Juice & Toya",handle:"JuiceandToya",blurb:"A husband-and-wife team sharing at-home workouts and motivation.",styles:["strength","hiit","cardio","lower"],lvl:[2,3],eq:[],len:[15,45],tags:[]},
+ {id:"bobbrad",name:"Bob & Brad",handle:"BobandBrad",blurb:"Physical therapists with practical tips and exercises for common aches like knees, backs and necks.",styles:["rehab","mobility"],lvl:[1,1],eq:[],len:[5,20],tags:["pt","low","quiet"]},
+ {id:"squatu",name:"Squat University",handle:"SquatUniversity",blurb:"A physical therapist and strength coach on moving well and working around knee, hip and back pain.",styles:["rehab","mobility","strength"],lvl:[2,3],eq:[],len:[5,20],tags:["pt"]}
+];
+
 window.SC=window.SC||{};
-Object.assign(window.SC,{EXERCISES:X,WARM,MOVES});
+Object.assign(window.SC,{EXERCISES:X,WARM,MOVES,CREATORS});
 })();

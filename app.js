@@ -222,7 +222,8 @@ function introHTML(s){
    <dl class="meta"><dt>Time</dt><dd>About ${session.estMin} min</dd><dt>Gear</dt><dd>${session.gear.length?session.gear.join(", ").replace(/^./,c=>c.toUpperCase()):"None, just a wall and a chair"}</dd></dl>
    ${tired}
    <div class="warn">${warns.map(w=>`<span>${w}</span>`).join("")}</div>
-   ${quiet}<p class="hint">Swipe or tap Next to move through. Timed cards move you on automatically when the timer ends.</p>
+   ${quiet}<p class="hint">Rather follow along with someone today? <button class="linkbtn" data-act="gocreators">See creators who fit you</button></p>
+   <p class="hint">Swipe or tap Next to move through. Timed cards move you on automatically when the timer ends.</p>
    <button class="btn" data-act="begin">Start workout</button></section>`;
 }
 function movesHTML(){
@@ -242,6 +243,46 @@ function movesHTML(){
    <h3>Daily check-in</h3>${checkinHTML(date)}
    ${s.rest?`<button class="btn ghost" data-act="short">Want more? Open a 10-minute session</button>`:""}</section>`;
 }
+// ---------- creators ----------
+let showAllCreators=false;
+const creatorPrefs=()=>store.get("creators",{saved:[],hidden:[]});
+function rerenderKeepScroll(fn){const card=track.firstElementChild, top=card?card.scrollTop:0; track.innerHTML=fn(); if(track.firstElementChild) track.firstElementChild.scrollTop=top;}
+function creatorRow(x,future,doneIds){
+  const did=doneIds.includes(x.c.id);
+  return `<div class="crow" data-cid="${x.c.id}"><div class="cname">${x.c.name}</div><small>${x.c.blurb}</small>
+    ${x.reasons.length?`<ul class="cues">${x.reasons.map(r=>`<li>${r}</li>`).join("")}</ul>`:""}
+    <a class="video" href="${x.videoUrl}" target="_blank" rel="noopener" data-open="${x.c.id}">Find a video: ${x.query}</a>
+    <div class="chips"><button class="pill" data-csave="${x.c.id}" aria-pressed="${x.saved}">${x.saved?"Saved ♥":"Save"}</button>
+    <button class="pill" data-cdid="${x.c.id}" aria-pressed="${did}"${future?" disabled":""}>${did?"Done today ✓":"I did one today"}</button>
+    <button class="pill" data-chide="${x.c.id}">Not for me</button></div></div>`;
+}
+function creatorsHTML(){
+  const s=week[dayIdx], date=dateOf(dayIdx), future=date>today();
+  const R=E.matchCreators(profile,{mins:s.rest?20:s.mins,focus:s.focus,rest:s.rest,slot:s.slot},creatorPrefs());
+  const doneIds=store.get("creatorlog",[]).filter(e=>e.date===date).map(e=>e.id);
+  const main=showAllCreators?R.workout:R.workout.slice(0,6);
+  return `<section class="card intro" id="creatorCard"><div class="phase">${E.DAY_NAMES[dayIdx]} · Creators</div><h2>Creators for you</h2>
+   <p class="hint">Matched to your answers. Handy on days you'd rather follow along with someone.${s.rest?"":" A video can stand in for today's workout. Tap \"I did one today\" to count it."}</p>
+   <h3>For your workouts</h3>${main.map(x=>creatorRow(x,future,doneIds)).join("")}
+   ${!showAllCreators&&R.workout.length>6?`<button class="btn ghost" data-act="morecreators">Show ${R.workout.length-6} more</button>`:""}
+   ${R.kids.length?`<h3>With the kids</h3>${R.kids.map(x=>creatorRow(x,future,doneIds)).join("")}`:""}
+   ${R.rehab.length?`<h3>For aches and pains</h3>${R.rehab.map(x=>creatorRow(x,future,doneIds)).join("")}`:""}
+   <p class="fine">Strength Coach isn't affiliated with or endorsed by these creators. Links open their public YouTube channels. Creators you hide can be brought back in Settings.</p></section>`;
+}
+function creatorAction(b){
+  const pr=creatorPrefs();
+  if(b.dataset.csave){const id=b.dataset.csave;pr.saved=pr.saved.includes(id)?pr.saved.filter(x=>x!==id):[...pr.saved,id];store.set("creators",pr);}
+  else if(b.dataset.chide){const id=b.dataset.chide;pr.hidden=[...new Set([...pr.hidden,id])];pr.saved=pr.saved.filter(x=>x!==id);store.set("creators",pr);}
+  else if(b.dataset.cdid){
+    const id=b.dataset.cdid, date=dateOf(dayIdx); if(date>today()) return;
+    let log=store.get("creatorlog",[]);
+    if(log.some(e=>e.date===date&&e.id===id)) log=log.filter(e=>!(e.date===date&&e.id===id));
+    else{log.push({date,id,day:dayIdx}); if(!week[dayIdx].rest){const d=loadDone(); if(!d.includes(dayIdx)){d.push(dayIdx);saveDone(d);renderDays();}}}
+    store.set("creatorlog",log.slice(-1000));
+  }
+  rerenderKeepScroll(creatorsHTML);
+}
+
 function endHTML(){
   const seen=new Set(), list=session.exIds.filter(id=>!seen.has(id)&&seen.add(id));
   return `<section class="card intro" id="endCard"><div class="phase">Finished</div><h2>How did that feel?</h2>
@@ -258,15 +299,15 @@ function build(){
   const s=week[dayIdx];
   if(s.rest&&mode==="full") mode="move";
   $("fullBtn").hidden=s.rest; $("shortBtn").hidden=!s.rest&&s.mins<=10;
-  $("fullBtn").textContent=`Workout · ${s.mins||profile.mins} min`;
-  $("shortBtn").textContent=s.rest?"10-min session":"10-min version";
+  $("fullBtn").textContent=`${s.mins||profile.mins} min`;
   if(mode==="move"){session=null;cards=[];track.innerHTML=movesHTML();}
+  else if(mode==="creators"){session=null;cards=[];track.innerHTML=creatorsHTML();}
   else{
     session=E.buildSession(profile,adjust,sessionOpts(s,mode==="short"?10:s.mins));
     cards=session.cards;
     track.innerHTML=introHTML(s)+cards.map(cardHTML).join("")+endHTML();
   }
-  [["fullBtn","full"],["shortBtn","short"],["moveBtn","move"]].forEach(([id,m])=>$(id).setAttribute("aria-pressed",String(mode===m)));
+  [["fullBtn","full"],["shortBtn","short"],["moveBtn","move"],["creatorBtn","creators"]].forEach(([id,m])=>$(id).setAttribute("aria-pressed",String(mode===m)));
   $("modeRow").hidden=false;
   cur=0; track.scrollTo({left:0,behavior:"instant"}); updateNav();
 }
@@ -382,7 +423,7 @@ function trendsHTML(){
    ${tips.map(t=>`<p class="note">${t}</p>`).join("")}`;
 }
 function settingsHTML(){
-  const hist=store.get("history",[]), a=adjust;
+  const hist=store.get("history",[]), a=adjust, cl=store.get("creatorlog",[]).length, hiddenN=creatorPrefs().hidden.length;
   const lvl=a.int===0?"Starting level":a.int>0?`${a.int} step${a.int>1?"s":""} up from where you started`:`${-a.int} step${a.int<-1?"s":""} easier than where you started`;
   const names={strength:"Overall strength",glutes:"Glutes + legs",posture:"Posture",core:"Core",mobility:"Mobility",feet:"Feet + balance"};
   const sched=week.filter(s=>!s.rest).map(s=>`${DAYS3[s.d]} ${s.slot?SLOT_NAMES[s.slot].toLowerCase()+", ":""}${s.mins} min`).join(" · ");
@@ -391,7 +432,8 @@ function settingsHTML(){
    <dt>Schedule</dt><dd>${sched}</dd>
    ${WORKING.includes(profile.work)?`<dt>Work days</dt><dd>${(profile.workDays||[0,1,2,3,4]).slice().sort().map(d=>DAYS3[d]).join(", ")}</dd>`:""}
    <dt>Level</dt><dd>${lvl}</dd><dt>Removed</dt><dd>${a.ban.length?a.ban.map(id=>E.BY_ID[id].name).join(", "):"Nothing"}</dd>
-   <dt>Logged</dt><dd>${hist.length} workout${hist.length===1?"":"s"}</dd></dl>
+   <dt>Logged</dt><dd>${hist.length} workout${hist.length===1?"":"s"}${cl?` · ${cl} creator video${cl===1?"":"s"}`:""}</dd></dl>
+   ${hiddenN?`<p class="note">${hiddenN} creator${hiddenN===1?"":"s"} hidden. <button class="pill" data-act="unhide">Show them again</button></p>`:""}
    <button class="btn" data-act="calendar">Add workouts to my calendar</button>
    <p class="fine">Adds a weekly repeating event for each workout day, with a reminder 10 minutes before: ${calTimesText()}. You can change the times in your calendar app. Changed your schedule here? Delete the old events, then add them again.</p>
    <h3>Last 7 days</h3>${trendsHTML()}
@@ -417,6 +459,8 @@ function openSettings(){stopTimer();$("modeRow").hidden=true;track.innerHTML=set
 
 // ---------- events ----------
 track.addEventListener("click",e=>{
+  const a=e.target.closest("a[data-open]");
+  if(a){const o=store.get("creatoropens",{});o[a.dataset.open]=(o[a.dataset.open]||0)+1;store.set("creatoropens",o);return;} // kept on this phone for now
   const b=e.target.closest("button"); if(!b)return; unlock();
   if(b.dataset.rate){endCard().querySelectorAll("[data-rate]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));endCard().querySelector('[data-act="savefb"]').disabled=false;return;}
   if(b.dataset.v){const on=b.getAttribute("aria-pressed")==="true";b.parentNode.querySelectorAll(".pill").forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed",String(!on));return;}
@@ -426,6 +470,7 @@ track.addEventListener("click",e=>{
     b.parentNode.querySelectorAll(".pill").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.cv===rec[k])));
     return;
   }
+  if(b.dataset.csave||b.dataset.chide||b.dataset.cdid){creatorAction(b);return;}
   if(b.dataset.move){
     const date=dateOf(dayIdx); if(date>today()) return;
     const rec=dayRec(date), m=rec.moves||[];
@@ -438,6 +483,9 @@ track.addEventListener("click",e=>{
   else if(act==="short"){mode="short";build();}
   else if(act==="full"){mode="full";build();}
   else if(act==="gomove"){mode="move";build();}
+  else if(act==="gocreators"){mode="creators";build();}
+  else if(act==="morecreators"){showAllCreators=true;rerenderKeepScroll(creatorsHTML);}
+  else if(act==="unhide"){const pr=creatorPrefs();pr.hidden=[];store.set("creators",pr);openSettings();}
   else if(act==="savefb") saveFeedback();
   else if(act==="reload") build();
   else if(act==="reset") resetCard(ci);
@@ -450,10 +498,11 @@ track.addEventListener("click",e=>{
   else if(act==="resetadj"){if(confirm("Undo every change your feedback has made to the plan?")){adjust=E.newAdjust();store.set("adjust",adjust);openSettings();}}
   else if(act==="close") build();
 });
-$("days").addEventListener("click",e=>{const b=e.target.closest(".day");if(!b)return;dayIdx=+b.dataset.i;mode="full";renderDays();build();});
+$("days").addEventListener("click",e=>{const b=e.target.closest(".day");if(!b)return;dayIdx=+b.dataset.i;mode=mode==="creators"?"creators":"full";showAllCreators=false;renderDays();build();});
 $("fullBtn").onclick=()=>{mode="full";build();};
 $("shortBtn").onclick=()=>{mode="short";build();};
 $("moveBtn").onclick=()=>{mode="move";build();};
+$("creatorBtn").onclick=()=>{mode="creators";build();};
 $("settingsBtn").onclick=openSettings;
 $("prevBtn").onclick=()=>go(cur-1);
 $("nextBtn").onclick=()=>{unlock();go(cur+1);};

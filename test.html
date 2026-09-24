@@ -133,6 +133,51 @@ for(const pass of [0,1]) for(const goals of GOALS) for(const gear of GEAR) for(c
   ok(E.calendarICS({},[{d:0,rest:true}],{now}).split("BEGIN:VEVENT").length===1,"no events when no training days");
 }
 
+// creator matching
+{
+  const C=SC.CREATORS, byId=Object.fromEntries(C.map(c=>[c.id,c]));
+  ok(new Set(C.map(c=>c.id)).size===C.length,"creator ids unique");
+  C.forEach(c=>ok(/^[A-Za-z0-9._-]+$/.test(c.handle)&&c.lvl[0]<=c.lvl[1]&&c.len[0]<=c.len[1]&&c.blurb.length>20,"creator data "+c.id));
+  const GOALS=[["strength"],["glutes"],["posture"],["core"],["mobility"],["feet"],["glutes","posture"]];
+  const LIMS=[[],["core"],["knee"],["back","neck"],["floor"]];
+  const KIDS=[[],["little"],["kids"],["teens"]];
+  for(const goals of GOALS) for(const exp of ["new","some","regular"]) for(const gear of [[],["db"],["band"]]) for(const limits of LIMS)
+  for(const kids of KIDS) for(const mins of [10,20,30,45]) for(const slot of [null,"late"]) for(const caution of [false,true]){
+    if(caution&&exp!=="some") continue;
+    const p={goals,exp,gear,limits,kids,caution,walk:"low"}, day={mins,focus:"L",slot}, tag=JSON.stringify({...p,mins,slot});
+    const R=E.matchCreators(p,day), r=R.workout, top=r.slice(0,3);
+    const all=[...R.workout,...R.kids,...R.rehab];
+    ok(r.length>=10,"workout creators ranked "+tag);
+    ok(all.every(x=>x.reasons.length<=3&&x.videoUrl.startsWith(x.url+"/search?query=")),"links and reasons "+tag);
+    ok([...r.slice(0,6),...R.kids,...R.rehab].every(x=>x.reasons.length>=1),"shown picks explain themselves "+tag);
+    ok(!r.some(x=>x.c.styles.includes("kids")||x.c.styles.includes("rehab")),"kids/rehab channels kept out of workout list "+tag);
+    if(!gear.includes("db")) ok(!top.some(x=>x.c.eq.includes("db")),"dumbbell creator for someone without dumbbells "+tag);
+    if(exp==="new"||caution) ok(top.every(x=>x.c.lvl[0]===1),"beginner got an advanced creator "+tag);
+    if(limits.includes("core")&&gear.includes("db")) ok(r.slice(0,6).some(x=>x.c.tags.includes("pre")),"postpartum with dumbbells but no pre/postnatal pick "+tag);
+    if(limits.includes("core")) ok(!top.some(x=>x.c.styles.includes("hiit")&&!x.c.tags.includes("low")),"postpartum got HIIT "+tag);
+    ok((R.kids.length>0)===kids.some(k=>k==="kids"||k==="little"),"kids section only for households with kids "+tag);
+    if(kids.includes("kids")) ok(R.kids[0].c.id==="cosmic","kids 4–12 get Cosmic Kids "+tag);
+    const aches=limits.some(l=>["knee","back","shoulder","neck"].includes(l));
+    ok((R.rehab.length>0)===aches,"aches section only with aches "+tag);
+    if(slot==="late") ok(!top.some(x=>x.c.styles.includes("hiit")&&!x.c.tags.some(t=>t==="quiet"||t==="low"))||top.filter(x=>x.c.tags.includes("quiet")).length>=1,"after bedtime without quiet options "+tag);
+  }
+  // preferences
+  const p={goals:["glutes"],exp:"some",gear:[],limits:[],kids:[]};
+  const base=E.matchCreators(p,{mins:20,focus:"L"}).workout;
+  const last=base[base.length-1].c.id, first=base[0].c.id;
+  const r2=E.matchCreators(p,{mins:20,focus:"L"},{saved:[last],hidden:[first]}).workout;
+  ok(r2[0].c.id===last&&r2[0].reasons[0]==="Saved by you","saved creator moves to the top");
+  ok(!r2.some(x=>x.c.id===first),"hidden creator removed");
+  ok(JSON.stringify(E.matchCreators(p,{mins:20,focus:"L"}).workout)===JSON.stringify(base),"matching is deterministic");
+  // search queries follow the day
+  const y=E.matchCreators({goals:["mobility"],exp:"new",gear:[],limits:[],kids:[]},{mins:15,focus:"C"}).workout.find(x=>x.c.id==="adriene");
+  ok(y.query==="15 minute yoga","yoga query "+y.query);
+  const m=E.matchCreators(p,{mins:20,focus:"U"}).workout.find(x=>x.c.id==="madfit");
+  ok(m.query==="20 minute upper body","strength query "+m.query);
+  const bb=E.matchCreators({goals:["strength"],exp:"new",gear:[],limits:["knee"],kids:[]},{mins:20,focus:"L"}).rehab.find(x=>x.c.id==="bobbrad");
+  ok(bb.query==="knee pain","rehab query "+bb.query);
+}
+
 const summary=Object.entries(stats).map(([m,a])=>`${m} min → est ${Math.min(...a)}–${Math.max(...a)} min (avg ${Math.round(a.reduce((x,y)=>x+y,0)/a.length)})`).join("\n");
 document.getElementById("out").textContent=(fails.length?"FAIL\n"+fails.join("\n"):"ALL PASS")+`\n${checks} checks\n`+summary;
 </script></body></html>

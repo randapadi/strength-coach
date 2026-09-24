@@ -141,6 +141,10 @@ footer .btn{flex:0 0 auto;padding:12px 18px;background:var(--surface);color:var(
 .moverow .name{font-weight:700}
 .moverow .pill{flex:0 0 auto;white-space:nowrap}
 .moverow .pill[aria-pressed="true"]{color:var(--rest);border-color:var(--rest)}
+.crow{display:grid;gap:6px;padding-block:12px;border-top:1px solid var(--line)}
+.crow .cname{font-weight:700;font-size:17px}
+.crow small{color:var(--muted);font-size:14px}
+.crow .pill[data-csave][aria-pressed="true"],.crow .pill[data-cdid][aria-pressed="true"]{color:var(--rest);border-color:var(--rest)}
 .linkbtn{font:inherit;background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer}
 @media (prefers-reduced-motion: reduce){.track{scroll-behavior:auto}.bar i{transition:none}}
 </style>
@@ -161,8 +165,9 @@ footer .btn{flex:0 0 auto;padding:12px 18px;background:var(--surface);color:var(
     <nav class="days" id="days" aria-label="Day of week"></nav>
     <div class="mode" id="modeRow">
       <button class="pill" id="fullBtn" aria-pressed="true">Full</button>
-      <button class="pill" id="shortBtn" aria-pressed="false">10-min version</button>
-      <button class="pill" id="moveBtn" aria-pressed="false">Daily moves</button>
+      <button class="pill" id="shortBtn" aria-pressed="false">10 min</button>
+      <button class="pill" id="moveBtn" aria-pressed="false">Moves</button>
+      <button class="pill" id="creatorBtn" aria-pressed="false">Creators</button>
     </div>
   </header>
   <main class="track" id="track" aria-live="polite"></main>

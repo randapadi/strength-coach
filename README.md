@@ -26,6 +26,9 @@ Every day has a walking goal (20 or 30 min, or none for people who already walk 
 ## Check-ins
 Sleep and hunger are logged per day (on the Daily moves tab or after a workout), only for today or earlier. After a poor night's sleep, the workout screen offers the 10-minute version. Settings shows 7-day trends.
 
+## Creators
+`CREATORS` in `data.js` lists 18 YouTube fitness creators (handles checked against their channel pages, Sept 2026), tagged by style, level, typical video length, gear and traits (low impact, quiet, pre/postnatal qualified, physical therapists, made for moms). `matchCreators` in `engine.js` ranks workout creators on goals, level, the day's length, gear, limitations, household and time slot, and returns up to three reasons each. Kid-friendly channels appear only for households with kids; physical-therapy channels only for knee, back, shoulder or neck limitations. "Find a video" searches the creator's channel for the day (for example "20 minute lower body"). Save, "Not for me" and "I did one today" are stored on the phone, along with how often each creator's link is opened, ready to sync once there's a server and user consent. The app is not affiliated with any creator.
+
 ## Calendar
 Settings → "Add workouts to my calendar" downloads an `.ics` file (built by `calendarICS` in `engine.js`) with a weekly repeating event per training day, a 10-minute reminder, and the day's session length. Slot times: morning 6:30, midday 12:15, evening 18:00, after bedtime 20:30, otherwise 18:00. Event IDs are stable per install.
 
