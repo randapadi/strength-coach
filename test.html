@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Engine tests</title></head>
+<body><pre id="out">running…</pre>
+<script src="data.js"></script>
+<script src="engine.js"></script>
+<script>
+// Generator tests. Open this page in a browser; it prints ALL PASS or the failures.
+const E=SC.engine, fails=[], stats={};
+let checks=0;
+const ok=(c,msg)=>{checks++; if(!c&&fails.length<40) fails.push(msg);};
+const subsets=a=>a.reduce((s,x)=>s.concat(s.map(y=>[...y,x])),[[]]);
+const GOALS=[["strength"],["glutes"],["posture"],["core"],["mobility"],["feet"],["glutes","posture"],["strength","core","mobility"],["glutes","posture","feet"]];
+const GEAR=[[],["band"],["tube"],["db"],["kb"],["band","tube","db","kb"],["band","gym"],["gym"]];
+const LIMS=[[],["knee"],["back"],["shoulder"],["neck"],["wrist"],["core"],["feet"],["floor"],["knee","back","floor"],["knee","back","shoulder","neck","wrist","core","feet","floor"]];
+const DAYS=[[0,3],[0,2,4],[0,1,3,5],[0,1,2,3,4,5]];
+const RANGE={10:[8,13],20:[16,24],30:[25,35],45:[38,52]};
+
+// Every goal × gear × limitation combination, twice, with experience, time, days and the
+// health-check answer rotated through so each of those values is covered many times.
+let n=0;
+for(const pass of [0,1]) for(const goals of GOALS) for(const gear of GEAR) for(const limits of LIMS){
+  n++;
+  const exp=["new","some","regular"][(n+pass)%3], mins=[10,20,30,45][(n+pass*2)%4], days=DAYS[(n>>2)%4], caution=n%7===0;
+  const gymDays=gear.includes("gym")?days.slice(0,1):[];
+  const p={goals,exp,mins,gear,limits,days,gymDays,caution};
+  const tag=JSON.stringify(p);
+  const wk=E.buildWeek(p);
+  ok(wk.length===7,"week length "+tag);
+  ok(wk.filter(d=>!d.rest).length===days.length,"training day count "+tag);
+  for(const d of wk.filter(d=>!d.rest)){
+    for(const m of [mins,10]){
+      const s=E.buildSession(p,E.newAdjust(),{focus:d.focus,variant:d.variant,gym:d.gym,mins:m});
+      const ids=s.exIds, owned=[...gear.filter(g=>g!=="gym"),...(d.gym?["gym"]:[])];
+      const mainIds=[...new Set(s.cards.filter(c=>c.phase.startsWith("Round")&&c.exId).map(c=>c.exId))];
+      ok(mainIds.length>=3,`only ${mainIds.length} main exercises ${d.focus} ${m}min ${tag}`);
+      ok(new Set(ids).size===ids.length,"duplicate exercise "+tag);
+      for(const c of s.cards.filter(c=>c.exId)){
+        const x=E.BY_ID[c.exId];
+        ok(!x.eq||x.eq.split("|").some(g=>owned.includes(g)),`${x.id} needs ${x.eq} ${tag}`);
+        ok(!(x.avoid||[]).some(f=>limits.includes(f)),`${x.id} breaks limits ${tag}`);
+        ok(/^https:\/\/www\.youtube\.com\//.test(c.video),"bad video "+x.id);
+        if(caution) ok(x.lvl<=2||x.pat==="stretch","caution got lvl3 "+x.id);
+      }
+      const [lo,hi]=RANGE[m]; ok(s.estMin>=lo&&s.estMin<=hi,`estMin ${s.estMin} outside ${lo}-${hi} for ${m}min ${d.focus} ${tag}`);
+      (stats[m]=stats[m]||[]).push(s.estMin);
+    }
+  }
+}
+
+// feedback behaviour
+{
+  const p={goals:["glutes","posture"],exp:"some",mins:30,gear:["band","db"],limits:[],days:[0,2,4],gymDays:[],caution:false};
+  const opts={focus:"L",variant:0,gym:false,mins:30};
+  const a0=E.newAdjust(), s0=E.buildSession(p,a0,opts);
+  const first=s0.exIds[0];
+  // pain removes the exercise
+  const r1=E.applyFeedback(p,a0,{rating:"right",ex:{[first]:"hurt"}},opts);
+  const s1=E.buildSession(p,r1.adjust,opts);
+  ok(!s1.exIds.includes(first),"hurt exercise still present");
+  ok(E.diffSessions(s0,s1).length>=1,"diff didn't report the swap");
+  // too easy overall raises reps
+  const reps=s=>s.cards.filter(c=>c.exId&&/reps|each side/.test(c.rx)).map(c=>parseInt(c.rx)).reduce((a,b)=>a+b,0);
+  const r2=E.applyFeedback(p,a0,{rating:"easy",ex:{}},opts);
+  ok(reps(E.buildSession(p,r2.adjust,opts))>reps(s0),"too easy didn't raise reps");
+  const r3=E.applyFeedback(p,a0,{rating:"hard",ex:{}},opts);
+  ok(reps(E.buildSession(p,r3.adjust,opts))<reps(s0),"too hard didn't lower reps");
+  // per-exercise too easy → harder variant or bigger dose
+  const r4=E.applyFeedback(p,a0,{rating:"right",ex:{[first]:"up"}},opts);
+  const s4=E.buildSession(p,r4.adjust,opts);
+  const card=(s,id)=>s.cards.find(c=>c.exId===id);
+  ok(s4.exIds[0]!==first||card(s4,first).rx!==card(s0,first).rx,"exercise 'too easy' changed nothing");
+  // three 'about right' in a row steps up
+  let a=a0; for(let i=0;i<3;i++) a=E.applyFeedback(p,a,{rating:"right",ex:{}},opts).adjust;
+  ok(a.int===1&&a.streak===0,"streak didn't step up");
+  // adjust objects are not mutated
+  ok(JSON.stringify(a0)===JSON.stringify(E.newAdjust()),"applyFeedback mutated its input");
+  // banning every exercise in a pattern still yields a session
+  const allSquat=E.newAdjust(); allSquat.ban=SC.EXERCISES.filter(x=>x.pat==="squat"||x.pat==="hinge").map(x=>x.id);
+  ok(E.buildSession(p,allSquat,opts).exIds.length>=3,"session collapsed after bans");
+}
+
+const summary=Object.entries(stats).map(([m,a])=>`${m} min → est ${Math.min(...a)}–${Math.max(...a)} min (avg ${Math.round(a.reduce((x,y)=>x+y,0)/a.length)})`).join("\n");
+document.getElementById("out").textContent=(fails.length?"FAIL\n"+fails.join("\n"):"ALL PASS")+`\n${checks} checks\n`+summary;
+</script></body></html>
