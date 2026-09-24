@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Strength Coach</string>
+    <string name="title_activity_main">Strength Coach</string>
+    <string name="package_name">com.example.strengthcoach</string>
+    <string name="custom_url_scheme">com.example.strengthcoach</string>
+</resources>

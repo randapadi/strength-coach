@@ -1,0 +1,18 @@
+{
+  "appId": "com.example.strengthcoach",
+  "appName": "Strength Coach",
+  "webDir": "www",
+  "backgroundColor": "#10141C",
+  "ios": {
+    "contentInset": "never"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon",
+      "iconColor": "#F0A458"
+    }
+  }
+}

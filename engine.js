@@ -289,5 +289,34 @@ function matchCreators(p,day={},prefs={}){
   return {workout:sort(workout),kids:sort(kidList),rehab:sort(rehab)};
 }
 
-window.SC.engine={matchCreators,dailyMoves,calendarICS,SLOT_TIMES,DEFAULT_TIME,FOCUS,DAY_NAMES,GEAR_NAMES,BY_ID,newAdjust,buildWeek,buildSession,applyFeedback,diffSessions,focusOrder};
+// ---------- phone reminders (app store version) ----------
+// Weekly repeating local notifications. weekday uses the 1 = Sunday … 7 = Saturday convention of iOS/Android.
+// ids: 100+day for workouts, 200+day for walk nudges, so re-scheduling replaces rather than duplicates.
+const NUDGE_TIME={work:[12,30],home:[10,30]};
+function reminderPlan(p,week,{lead=10,nudge=false}={}){
+  const out=[], wd=d=>((d+1)%7)+1;
+  for(const s of week.filter(s=>!s.rest)){
+    const [h,m]=SLOT_TIMES[s.slot]||DEFAULT_TIME;
+    let t=h*60+m-lead, day=s.d;
+    if(t<0){t+=24*60;day=(s.d+6)%7;}                      // a reminder before midnight belongs to the previous day
+    out.push({id:100+s.d,weekday:wd(day),hour:Math.floor(t/60),minute:t%60,
+      title:lead?`Workout in ${lead} minutes`:"Time for your workout",
+      body:`${FOCUS[s.focus].title}, ${s.mins} min. Tap to start.`});
+  }
+  if(nudge){
+    const working=WORKING.includes(p.work), workDays=p.workDays||[0,1,2,3,4];
+    for(let d=0;d<7;d++){
+      const workday=working&&workDays.includes(d);
+      if(working&&!workday) continue;                   // workers: nudge on workdays only
+      if(p.work==="feet"&&workday) continue;             // on their feet all day already
+      if(p.walk==="high") continue;
+      const day=week[d]; if(day&&!day.rest&&day.slot==="midday") continue;   // midday workout already
+      const [h,m]=NUDGE_TIME[workday?"work":"home"];
+      out.push({id:200+d,weekday:wd(d),hour:h,minute:m,title:"Time for a short walk?",body:workday?"A 10-minute walk after lunch counts toward today's goal.":"A 10-minute walk counts toward today's goal."});
+    }
+  }
+  return out;
+}
+
+window.SC.engine={reminderPlan,matchCreators,dailyMoves,calendarICS,SLOT_TIMES,DEFAULT_TIME,FOCUS,DAY_NAMES,GEAR_NAMES,BY_ID,newAdjust,buildWeek,buildSession,applyFeedback,diffSessions,focusOrder};
 })();

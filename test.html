@@ -178,6 +178,33 @@ for(const pass of [0,1]) for(const goals of GOALS) for(const gear of GEAR) for(c
   ok(bb.query==="knee pain","rehab query "+bb.query);
 }
 
+// phone reminders
+{
+  const p={goals:["glutes"],work:"drive",workDays:[0,1,2,3,4],walk:"low",days:[0,2,5,6],mins:30,
+    sched:{0:{slot:"evening",mins:20},2:{slot:"midday",mins:30},5:{slot:"morning",mins:45},6:{slot:null,mins:30}}};
+  const wk=E.buildWeek(p);
+  const r=E.reminderPlan(p,wk);
+  const byId=Object.fromEntries(r.map(x=>[x.id,x]));
+  ok(r.length===4,"one reminder per workout day: "+r.length);
+  ok(byId[100].weekday===2&&byId[100].hour===17&&byId[100].minute===50,"Monday evening → weekday 2 at 17:50");
+  ok(byId[102].weekday===4&&byId[102].hour===12&&byId[102].minute===5,"Wednesday midday → weekday 4 at 12:05");
+  ok(byId[105].weekday===7&&byId[105].hour===6&&byId[105].minute===20,"Saturday morning → weekday 7 at 6:20");
+  ok(byId[106].weekday===1&&byId[106].hour===17&&byId[106].minute===50,"Sunday, no time → weekday 1 at 17:50");
+  ok(byId[100].title==="Workout in 10 minutes"&&byId[100].body==="Lower Body + Glutes, 20 min. Tap to start.","reminder text: "+byId[100].body);
+  const r0=E.reminderPlan(p,wk,{lead:0});
+  ok(r0.find(x=>x.id===100).hour===18&&r0.find(x=>x.id===100).minute===0&&r0[0].title==="Time for your workout","at-start-time option");
+  const n=E.reminderPlan(p,wk,{nudge:true}).filter(x=>x.id>=200);
+  ok(n.map(x=>x.id).join()==="200,201,203,204","walk nudges on workdays, skipping Wednesday's midday workout: "+n.map(x=>x.id).join());
+  ok(n.every(x=>x.hour===12&&x.minute===30),"workday nudges at 12:30");
+  const home=E.reminderPlan({...p,work:"parent"},wk,{nudge:true}).filter(x=>x.id>=200);
+  ok(home.length===6&&home.every(x=>x.hour===10&&x.minute===30),"stay-at-home parent: nudges every day at 10:30 except midday-workout day ("+home.length+")");
+  ok(E.reminderPlan({...p,work:"feet"},wk,{nudge:true}).filter(x=>x.id>=200).length===0,"on-their-feet workers: no workday nudges");
+  ok(E.reminderPlan({...p,walk:"high"},wk,{nudge:true}).filter(x=>x.id>=200).length===0,"already walks a lot: no nudges");
+  const all=E.reminderPlan({...p,work:"parent"},wk,{nudge:true});
+  ok(new Set(all.map(x=>x.id)).size===all.length,"reminder ids unique");
+  ok(all.every(x=>x.weekday>=1&&x.weekday<=7&&x.hour>=0&&x.hour<24&&x.minute>=0&&x.minute<60),"valid schedule fields");
+}
+
 const summary=Object.entries(stats).map(([m,a])=>`${m} min → est ${Math.min(...a)}–${Math.max(...a)} min (avg ${Math.round(a.reduce((x,y)=>x+y,0)/a.length)})`).join("\n");
 document.getElementById("out").textContent=(fails.length?"FAIL\n"+fails.join("\n"):"ALL PASS")+`\n${checks} checks\n`+summary;
 </script></body></html>

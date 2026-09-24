@@ -1,0 +1,23 @@
+{
+  "name": "strength-coach",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Strength Coach app store build (Capacitor wrapper around the web app)",
+  "scripts": {
+    "build": "node scripts/build-www.mjs",
+    "sync": "npm run build && npx cap sync",
+    "android:release": "./scripts/android-release.sh",
+    "icons": "./scripts/make-icons.sh"
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/local-notifications": "^8.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/ios": "^8.5.2"
+  }
+}

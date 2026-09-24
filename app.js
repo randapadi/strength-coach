@@ -2,6 +2,7 @@
 const E=window.SC.engine;
 const $=id=>document.getElementById(id);
 const PROFILE_VERSION=2;
+const PRIVACY_URL="https://randapadi.github.io/strength-coach/privacy.html";
 
 // ---------- storage (everything stays on this device; the app works without it) ----------
 const store={
@@ -20,6 +21,41 @@ const today=()=>ymd(new Date());
 const saveDayRec=(date,r)=>store.set("day-"+date,r);
 
 let profile=store.get("profile",null), adjust=store.get("adjust",E.newAdjust());
+
+// ---------- phone app (Capacitor) ----------
+// The same code runs on the web and inside the iOS/Android apps; these features switch on only in the apps.
+const CAP=window.Capacitor, NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform());
+const Plug=n=>NATIVE&&CAP.Plugins?CAP.Plugins[n]:null;
+const reminderPrefs=()=>({on:false,lead:10,nudge:false,asked:false,...store.get("reminders",{})});
+async function syncReminders(){
+  const LN=Plug("LocalNotifications"); if(!LN||!profile) return;
+  try{
+    const pending=await LN.getPending();
+    if(pending.notifications.length) await LN.cancel({notifications:pending.notifications.map(n=>({id:n.id}))});
+    const r=reminderPrefs(); if(!r.on) return;
+    const plan=E.reminderPlan(profile,E.buildWeek(profile),{lead:r.lead,nudge:r.nudge});
+    // isExactNotification:false → Android may deliver a few minutes late to save battery, but never needs the
+    // "Alarms & reminders" permission (off by default on Android 14+, and restricted by Google Play to alarm apps)
+    await LN.schedule({notifications:plan.map(n=>({id:n.id,title:n.title,body:n.body,isExactNotification:false,schedule:{on:{weekday:n.weekday,hour:n.hour,minute:n.minute},allowWhileIdle:true}}))});
+  }catch(e){console.warn("reminders",e);}
+}
+async function setReminders(on){
+  const LN=Plug("LocalNotifications"), r=reminderPrefs(); r.asked=true;
+  if(on&&LN){
+    let perm=await LN.checkPermissions().catch(()=>({display:"denied"}));
+    if(perm.display!=="granted") perm=await LN.requestPermissions().catch(()=>({display:"denied"}));
+    r.on=perm.display==="granted";
+    if(!r.on) alert("Notifications are turned off for Strength Coach. You can allow them in your phone's Settings app, then try again.");
+  }else r.on=false;
+  store.set("reminders",r); await syncReminders(); return r.on;
+}
+// YouTube and other outside links open in an in-app browser instead of replacing the app.
+document.addEventListener("click",e=>{
+  if(!NATIVE) return;
+  const a=e.target.closest("a[href^='http']"); if(!a) return;
+  const B=Plug("Browser"); if(!B) return;
+  e.preventDefault(); B.open({url:a.href});
+},true);
 
 // ---------- quiz ----------
 const DAYS3=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -128,7 +164,7 @@ function finishQuiz(){
   const planChanged=!profile||planKeys.some(k=>JSON.stringify(profile[k])!==JSON.stringify(draft[k]));
   profile={...draft,v:PROFILE_VERSION}; store.set("profile",profile);
   if(planChanged){adjust=E.newAdjust();store.set("adjust",adjust);} // new body/gear answers → fresh starting point
-  draft=null; showPlan();
+  draft=null; showPlan(); syncReminders();
 }
 $("setup").addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b)return;
@@ -221,6 +257,7 @@ function introHTML(s){
   return `<section class="card intro"><div class="phase">${where}</div><h2>${session.title}</h2>
    <dl class="meta"><dt>Time</dt><dd>About ${session.estMin} min</dd><dt>Gear</dt><dd>${session.gear.length?session.gear.join(", ").replace(/^./,c=>c.toUpperCase()):"None, just a wall and a chair"}</dd></dl>
    ${tired}
+   ${NATIVE&&!reminderPrefs().asked?`<div class="note">Get a reminder before each workout?${s.slot?"":" Pick a time for each day in Settings, or we'll use 6 pm."} <button class="pill" data-act="remon">Yes, remind me</button><button class="pill" data-act="remno">Not now</button></div>`:""}
    <div class="warn">${warns.map(w=>`<span>${w}</span>`).join("")}</div>
    ${quiet}<p class="hint">Rather follow along with someone today? <button class="linkbtn" data-act="gocreators">See creators who fit you</button></p>
    <p class="hint">Swipe or tap Next to move through. Timed cards move you on automatically when the timer ends.</p>
@@ -434,14 +471,23 @@ function settingsHTML(){
    <dt>Level</dt><dd>${lvl}</dd><dt>Removed</dt><dd>${a.ban.length?a.ban.map(id=>E.BY_ID[id].name).join(", "):"Nothing"}</dd>
    <dt>Logged</dt><dd>${hist.length} workout${hist.length===1?"":"s"}${cl?` · ${cl} creator video${cl===1?"":"s"}`:""}</dd></dl>
    ${hiddenN?`<p class="note">${hiddenN} creator${hiddenN===1?"":"s"} hidden. <button class="pill" data-act="unhide">Show them again</button></p>`:""}
-   <button class="btn" data-act="calendar">Add workouts to my calendar</button>
-   <p class="fine">Adds a weekly repeating event for each workout day, with a reminder 10 minutes before: ${calTimesText()}. You can change the times in your calendar app. Changed your schedule here? Delete the old events, then add them again.</p>
+   ${NATIVE?remindersHTML():`<button class="btn" data-act="calendar">Add workouts to my calendar</button>
+   <p class="fine">Adds a weekly repeating event for each workout day, with a reminder 10 minutes before: ${calTimesText()}. You can change the times in your calendar app. Changed your schedule here? Delete the old events, then add them again.</p>`}
    <h3>Last 7 days</h3>${trendsHTML()}
    <button class="btn" data-act="requiz">Change my answers</button>
    <button class="btn ghost" data-act="resetadj">Undo all feedback changes</button>
    <button class="btn ghost" data-act="close">‹ Back to my plan</button>
    <p class="fine">Everything is stored only on this device. Clearing your browser data or uninstalling removes it.</p>
-   <p class="fine">General fitness guidance, not medical advice. Stop if something hurts, and check with a doctor or physio about pain or health conditions.</p></section>`;
+   <p class="fine">General fitness guidance, not medical advice. Stop if something hurts, and check with a doctor or physio about pain or health conditions.</p>
+   <p class="fine"><a href="${PRIVACY_URL}" target="_blank" rel="noopener">Privacy policy</a></p></section>`;
+}
+function remindersHTML(){
+  const r=reminderPrefs();
+  return `<h3>Reminders</h3>
+   <div class="checkin"><div class="ckrow"><span>Workout reminders</span><div class="chips"><button class="pill" data-act="remtoggle" aria-pressed="${r.on}">${r.on?"On":"Off"}</button>
+     ${r.on?`<button class="pill" data-act="remlead" aria-pressed="true">${r.lead?"10 min before":"At start time"}</button>`:""}</div></div>
+   ${r.on?`<div class="ckrow"><span>Nudge me to take a short walk</span><div class="chips"><button class="pill" data-act="remnudge" aria-pressed="${r.nudge}">${r.nudge?"On":"Off"}</button></div></div>`:""}</div>
+   <p class="fine">Reminders follow your schedule: ${calTimesText()}. Walk nudges come at 12:30 on workdays (10:30 if you're not working).</p>`;
 }
 function calTimesText(){
   const t=([h,m])=>`${h%12||12}${m?":"+String(m).padStart(2,"0"):""} ${h<12?"am":"pm"}`;
@@ -494,6 +540,10 @@ track.addEventListener("click",e=>{
     else startTimer(ci,cards[ci].segs);
   }
   else if(act==="requiz") startQuiz();
+  else if(act==="remon"||act==="remno"){setReminders(act==="remon").then(()=>build());}
+  else if(act==="remtoggle"){setReminders(!reminderPrefs().on).then(openSettings);}
+  else if(act==="remlead"){const r=reminderPrefs();r.lead=r.lead?0:10;store.set("reminders",r);syncReminders().then(openSettings);}
+  else if(act==="remnudge"){const r=reminderPrefs();r.nudge=!r.nudge;store.set("reminders",r);syncReminders().then(openSettings);}
   else if(act==="calendar") downloadCalendar();
   else if(act==="resetadj"){if(confirm("Undo every change your feedback has made to the plan?")){adjust=E.newAdjust();store.set("adjust",adjust);openSettings();}}
   else if(act==="close") build();
@@ -513,7 +563,7 @@ document.addEventListener("keydown",e=>{if($("app").hidden)return;if(e.key==="Ar
 window.addEventListener("resize",()=>track.scrollTo({left:cur*step(),behavior:"instant"}));
 
 // People who set up before the lifestyle questions existed start at the first new question; their old answers are prefilled.
-if(profile&&profile.v===PROFILE_VERSION) showPlan();
+if(profile&&profile.v===PROFILE_VERSION){showPlan();syncReminders();}
 else if(profile){startQuiz(); qi=activeSteps().findIndex(s=>!stepValid(s)); if(qi<0)qi=0; renderSetup();}
 else renderSetup();
 })();

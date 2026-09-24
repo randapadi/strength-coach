@@ -12,10 +12,14 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <title>Strength Coach</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
 <style>
+/* fonts are bundled (SIL Open Font License, see fonts/) so the app works offline and makes no third-party requests */
+@font-face{font-family:"Atkinson Hyperlegible";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/AtkinsonHyperlegible-400.woff2) format("woff2")}
+@font-face{font-family:"Atkinson Hyperlegible";font-style:normal;font-weight:700;font-display:swap;src:url(fonts/AtkinsonHyperlegible-700.woff2) format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:500;font-display:swap;src:url(fonts/BarlowCondensed-500.woff2) format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:600;font-display:swap;src:url(fonts/BarlowCondensed-600.woff2) format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-style:normal;font-weight:700;font-display:swap;src:url(fonts/BarlowCondensed-700.woff2) format("woff2")}
+
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
 [hidden]{display:none!important}
 :root{
@@ -46,6 +50,8 @@ body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16p
 header{padding-block:12px 8px;display:grid;gap:10px}
 .top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .brand{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase}
+.brand{white-space:nowrap}
+@media (max-width:380px){.brand{font-size:19px;letter-spacing:.02em}.toggles{gap:4px}.toggles .pill{padding:5px 8px;font-size:12px}}
 .toggles{display:flex;gap:6px}
 .pill{font:inherit;font-size:13px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:5px 10px;cursor:pointer}
 .pill[aria-pressed="true"]{color:var(--ink);border-color:var(--accent)}
@@ -181,5 +187,5 @@ footer .btn{flex:0 0 auto;padding:12px 18px;background:var(--surface);color:var(
 <script src="data.js"></script>
 <script src="engine.js"></script>
 <script src="app.js"></script>
-<script>if("serviceWorker" in navigator&&location.protocol!=="file:"){addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}</script>
+<script>if("serviceWorker" in navigator&&location.protocol!=="file:"&&!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform())){addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}</script>
 </body></html>

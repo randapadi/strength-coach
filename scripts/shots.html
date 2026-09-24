@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8">
+<!-- Used by scripts/make-screenshots.sh: renders one app state (?n=1..7) in a phone-sized frame. -->
+<style>html,body{margin:0;background:#10141C}iframe{border:0;display:block;margin:0 auto}   /* centered: sips crops from the center */</style>
+<iframe id="f"></iframe>
+<script>
+const P=new URLSearchParams(location.search), n=+P.get("n"), w=+P.get("w"), h=+P.get("h"), f=document.getElementById("f");
+f.style.width=w+"px"; f.style.height=h+"px";
+localStorage.clear();
+const profile={goals:["glutes","posture"],exp:"some",kids:["little"],work:"drive",workDays:[0,1,2,3,4],walk:"low",days:[0,2,4,5],mins:30,
+  sched:{0:{slot:"evening",mins:20},2:{slot:"late",mins:30},4:{slot:"midday",mins:20},5:{slot:"morning",mins:45}},gear:["band","db"],gymDays:[],limits:[],caution:false,v:2};
+if(n!==1&&n!==2) localStorage.setItem("sc-profile",JSON.stringify(profile));
+f.src="../index.html";
+f.onload=()=>{
+  const d=f.contentDocument, W=f.contentWindow, q=s=>d.querySelector(s), qa=s=>[...d.querySelectorAll(s)];
+  d.documentElement.dataset.theme="dark";
+  const day=i=>qa(".day")[i]&&qa(".day")[i].click();
+  const goCard=el=>{const t=d.getElementById("track");t.style.scrollBehavior="auto";t.scrollLeft=[...t.children].indexOf(el)*(t.clientWidth+16);t.dispatchEvent(new Event("scroll"));};
+  setTimeout(()=>{
+    if(n===2){q('[data-q="start"]').click();
+      const pick=t=>qa("#setup .opt").find(b=>b.textContent.trim().startsWith(t)).click(), next=()=>q('[data-q="next"]').click();
+      pick("Glutes");pick("Posture");next();pick("Some");next();pick("Baby");next();pick("I drive");next();next();pick("Under 15");next();
+      ["Mon","Wed","Fri","Sat"].forEach(pick);next();pick("30 min");next();
+      const rows=qa(".schedrow"); rows[0].querySelector('[data-slot="evening"]').click(); qa(".schedrow")[0].querySelector('[data-len="20"]').click();
+      qa(".schedrow")[1].querySelector('[data-slot="late"]').click(); qa(".schedrow")[2].querySelector('[data-slot="midday"]').click(); qa(".schedrow")[2].querySelector('[data-len="20"]').click();
+      qa(".schedrow")[3].querySelector('[data-slot="morning"]').click(); qa(".schedrow")[3].querySelector('[data-len="45"]').click();}
+    if(n===3) day(0);
+    if(n===4){day(2); const rounds=qa(".track .card").filter(c=>/^Round \d+ of/.test(c.querySelector(".phase").textContent)&&c.querySelector("h2").textContent!=="Rest");
+      goCard(rounds.find(c=>c.querySelector(".timer"))||rounds[0]);}
+    if(n===5){day(0); const e=q("#endCard"); goCard(e); e.querySelector('[data-rate="right"]').click(); e.querySelectorAll('.fbrow [data-v="up"]')[1].click();}
+    if(n===6){day(new Date().getDay()===0?6:(new Date().getDay()+6)%7); q("#moveBtn").click(); q("[data-move]").click(); q('[data-ck="sleep"] [data-cv="good"]').click(); q('[data-ck="hunger"] [data-cv="normal"]').click();}
+    if(n===7){day(0); q("#creatorBtn").click();}
+  },600);
+};
+</script>

@@ -1,0 +1,13 @@
+node_modules/
+www/
+# signing keys and passwords never go in the repo
+*.jks
+*.keystore
+keystore.properties
+android/app/release/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+ios/App/build/
+.DS_Store

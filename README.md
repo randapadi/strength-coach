@@ -32,4 +32,11 @@ Sleep and hunger are logged per day (on the Daily moves tab or after a workout),
 ## Calendar
 Settings → "Add workouts to my calendar" downloads an `.ics` file (built by `calendarICS` in `engine.js`) with a weekly repeating event per training day, a 10-minute reminder, and the day's session length. Slot times: morning 6:30, midday 12:15, evening 18:00, after bedtime 20:30, otherwise 18:00. Event IDs are stable per install.
 
+## App store version
+The iOS and Android apps are the same web app wrapped with Capacitor 8 (`capacitor.config.json`, `android/`, `ios/`). `npm run build` copies the web files into `www/`; `npx cap sync` copies them into the native projects. Native-only features switch on when `Capacitor.isNativePlatform()` is true: local reminders before each workout and optional walk nudges (`reminderPlan` in `engine.js`), and outside links open in an in-app browser. Reminders use inexact alarms, so the app needs no exact-alarm permission.
+
+- `npm run android:release` builds the signed Play bundle. The upload key is in `~/.strength-coach/` and its password in the macOS Keychain; never commit either.
+- `npm run icons` regenerates icons and splash screens from `assets/*.svg`; `scripts/make-screenshots.sh` renders store screenshots into `store/screenshots/`.
+- `store/GUIDE.md` has the account and submission steps; `store/LISTING.md` has the listing text.
+
 General fitness guidance, not medical advice.
