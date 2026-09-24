@@ -22,13 +22,15 @@ for(const pass of [0,1]) for(const goals of GOALS) for(const gear of GEAR) for(c
   n++;
   const exp=["new","some","regular"][(n+pass)%3], mins=[10,20,30,45][(n+pass*2)%4], days=DAYS[(n>>2)%4], caution=n%7===0;
   const gymDays=gear.includes("gym")?days.slice(0,1):[];
-  const p={goals,exp,mins,gear,limits,days,gymDays,caution};
+  const sched=Object.fromEntries(days.map((d,i)=>[d,{slot:null,mins:[10,20,30,45][(n+i)%4]}]));  // lengths vary by day
+  const p={goals,exp,mins,gear,limits,days,gymDays,caution,sched};
   const tag=JSON.stringify(p);
   const wk=E.buildWeek(p);
   ok(wk.length===7,"week length "+tag);
   ok(wk.filter(d=>!d.rest).length===days.length,"training day count "+tag);
   for(const d of wk.filter(d=>!d.rest)){
-    for(const m of [mins,10]){
+    ok(d.mins===sched[d.d].mins,"day length not taken from schedule "+tag);
+    for(const m of [d.mins,10]){
       const s=E.buildSession(p,E.newAdjust(),{focus:d.focus,variant:d.variant,gym:d.gym,mins:m});
       const ids=s.exIds, owned=[...gear.filter(g=>g!=="gym"),...(d.gym?["gym"]:[])];
       const mainIds=[...new Set(s.cards.filter(c=>c.phase.startsWith("Round")&&c.exId).map(c=>c.exId))];
@@ -77,6 +79,33 @@ for(const pass of [0,1]) for(const goals of GOALS) for(const gear of GEAR) for(c
   // banning every exercise in a pattern still yields a session
   const allSquat=E.newAdjust(); allSquat.ban=SC.EXERCISES.filter(x=>x.pat==="squat"||x.pat==="hinge").map(x=>x.id);
   ok(E.buildSession(p,allSquat,opts).exIds.length>=3,"session collapsed after bans");
+}
+
+// daily moves
+{
+  const KIDS=[[],["little"],["kids"],["teens"],["little","kids"]], WORK=["drive","transit","home","feet","parent","none"];
+  for(const kids of KIDS) for(const work of WORK) for(const walk of ["low","mid","high"]) for(let d=0;d<7;d++) for(const date of ["2026-09-21","2026-09-22","2026-10-05"]){
+    const p={kids,work,walk}, tag=JSON.stringify({kids,work,walk,d,date});
+    const m=E.dailyMoves(p,d,date), ids=m.items.map(x=>x.id);
+    ok(m.items.length===4,"not 4 moves "+tag);
+    ok(new Set(ids).size===ids.length,"duplicate move "+tag);
+    const off=d>=5||!["drive","transit","home","feet"].includes(work);
+    for(const x of m.items){
+      ok(!x.kids||x.kids.some(k=>kids.includes(k)),`${x.id} is for kids ${tag}`);
+      ok(!x.nokids||!kids.length,`${x.id} is for people without kids ${tag}`);
+      ok(!x.work||x.work.includes(work),`${x.id} doesn't fit work ${tag}`);
+      ok(x.days==="any"||(x.days==="off")===off,`${x.id} wrong day type ${tag}`);
+      if(x.q) ok(/^https:\/\/www\.youtube\.com\/results\?search_query=/.test(x.video),"move video link "+x.id);
+    }
+    if(kids.length) ok(m.items.some(x=>x.kids),"parent got no kid-friendly ideas "+tag);
+    if(kids.includes("little")&&d>=5) ok(m.items.filter(x=>x.kids).length>=2,"toddler parent weekend lacks kid ideas "+tag);
+    ok(m.goal===(work==="feet"&&!off||walk==="high"?0:walk==="mid"?30:20),"walk goal "+tag);
+    ok(JSON.stringify(E.dailyMoves(p,d,date))===JSON.stringify(m),"moves not stable within a day "+tag);
+  }
+  // picks rotate from day to day
+  const p={kids:["little"],work:"drive",walk:"low"}, seen=new Set();
+  for(let i=1;i<=28;i++) E.dailyMoves(p,2,`2026-10-${String(i).padStart(2,"0")}`).items.forEach(x=>seen.add(x.id));
+  ok(seen.size>=8,"moves don't rotate: only "+seen.size+" distinct over 4 weeks");
 }
 
 const summary=Object.entries(stats).map(([m,a])=>`${m} min → est ${Math.min(...a)}–${Math.max(...a)} min (avg ${Math.round(a.reduce((x,y)=>x+y,0)/a.length)})`).join("\n");

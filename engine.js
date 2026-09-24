@@ -1,7 +1,7 @@
 // Plan generator. Pure functions: profile + adjustments in, plan out. No DOM, no storage, no network,
 // so it runs instantly on the phone and can be tested on its own (see test.html).
 (function(){
-const {EXERCISES,WARM}=window.SC;
+const {EXERCISES,WARM,MOVES}=window.SC;
 const BY_ID=Object.fromEntries(EXERCISES.map(x=>[x.id,x]));
 
 const FOCUS={
@@ -38,7 +38,8 @@ function buildWeek(p){
     if(i<0) return {d,name,rest:true};
     const focus=order[i%order.length];
     seen[focus]=(seen[focus]||0)+1;
-    return {d,name,focus,variant:seen[focus]-1,gym:(p.gymDays||[]).includes(d)};
+    const sc=(p.sched||{})[d]||{};
+    return {d,name,focus,variant:seen[focus]-1,gym:(p.gymDays||[]).includes(d),slot:sc.slot||null,mins:sc.mins||p.mins||30};
   });
 }
 
@@ -190,5 +191,26 @@ function diffSessions(before,after){
   return out;
 }
 
-window.SC.engine={FOCUS,DAY_NAMES,GEAR_NAMES,BY_ID,newAdjust,buildWeek,buildSession,applyFeedback,diffSessions,focusOrder};
+// ---------- everyday movement ----------
+const WORKING=["drive","transit","home","feet"];
+function hash(str){let h=2166136261;for(const c of str){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}
+// Suggestions for one day. dateStr (YYYY-MM-DD) makes the picks rotate day to day but stay stable within a day.
+function dailyMoves(p,d,dateStr,count=4){
+  const kids=p.kids||[], off=d>=5||!WORKING.includes(p.work), parent=kids.length>0;
+  const fits=m=>(m.days==="any"||(m.days==="off")===off)
+    &&(!m.work||m.work.includes(p.work))
+    &&(!m.kids||m.kids.some(k=>kids.includes(k)))
+    &&(!m.nokids||!parent);
+  const pool=MOVES.filter(fits).map(m=>({m,k:hash(m.id+dateStr)})).sort((a,b)=>a.k-b.k).map(x=>x.m);
+  // guaranteed places: kid-friendly ideas for parents (two on days off, one on workdays),
+  // workday ideas on workdays (two), then anything else that fits
+  const kidIdeas=pool.filter(m=>m.kids), workIdeas=pool.filter(m=>m.work);
+  const pick=[...kidIdeas.slice(0,parent?(off?2:1):0),...workIdeas.slice(0,off?0:2)];
+  for(const m of pool){ if(pick.length>=count) break; if(!pick.includes(m)) pick.push(m); }
+  const onFeet=p.work==="feet"&&!off;
+  const goal=onFeet||p.walk==="high"?0:p.walk==="mid"?30:20;
+  return {goal,onFeet,items:pick.map(m=>({...m,video:m.q?"https://www.youtube.com/results?search_query="+encodeURIComponent(m.q):null}))};
+}
+
+window.SC.engine={dailyMoves,FOCUS,DAY_NAMES,GEAR_NAMES,BY_ID,newAdjust,buildWeek,buildSession,applyFeedback,diffSessions,focusOrder};
 })();

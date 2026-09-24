@@ -97,6 +97,40 @@ const WARM={
   C:[{name:"March in place",d:{t:120},cues:["Easy pace, tall posture"]},{name:"Hip circles + side bends",d:{r:8},cues:["8 circles each way, 8 side bends each side"]}]
 };
 
+// Everyday movement ideas for the "Daily moves" tab.
+// days: "work" = workdays only, "off" = weekends/days off only, "any"
+// work: only for these work styles (drive, transit, home, feet, parent, none); kids: only for these households
+// (little = 0–3, kids = 4–12, teens); nokids: only without kids at home. q: YouTube search for a video.
+const MOVES=[
+ {id:"park",t:"Park at the far end of the lot",d:"About 5 extra minutes of walking, both ways.",min:5,days:"work",work:["drive"]},
+ {id:"stairs",t:"Take the stairs",d:"All the way, or a few flights and ride the rest.",min:5,days:"work",work:["drive","transit"]},
+ {id:"stop",t:"Get off one stop early",d:"Walk the last stretch to work.",min:10,days:"work",work:["transit"]},
+ {id:"lunchwalk",t:"10-minute walk after lunch",d:"Even a loop around the building counts.",min:10,days:"work",work:["drive","transit","home"]},
+ {id:"walkcall",t:"Take one call on your feet",d:"Walk while you talk. Headphones help.",min:10,days:"work",work:["drive","transit","home"]},
+ {id:"fakecommute",t:"Fake commute",d:"Walk around the block before you start work and after you finish.",min:15,days:"work",work:["home"]},
+ {id:"hourly",t:"Stand up once an hour",d:"Refill your water, stretch, or use a farther restroom.",min:5,days:"work",work:["drive","transit","home"]},
+ {id:"calves",t:"Stretch your calves after your shift",d:"Your job already keeps you moving. Two minutes against a wall.",min:2,days:"work",work:["feet"]},
+ {id:"schoolwalk",t:"Walk to school or the bus stop",d:"Or park a few blocks away for pickup.",min:10,days:"work",kids:["kids"]},
+ {id:"strollerwalk",t:"Stroller walk",d:"Around the neighborhood, at a pace where you can talk but not sing.",min:20,days:"any",kids:["little"]},
+ {id:"momandme",t:"Mommy-and-me workout",d:"A short video you can do with your baby or toddler. Skip crunches and planks if you're still recovering from birth.",min:15,days:"any",kids:["little"],q:"mommy and me workout with baby"},
+ {id:"strollerworkout",t:"Stroller workout",d:"A walk with squats and lunges at benches along the way.",min:20,days:"any",kids:["little"],q:"stroller workout"},
+ {id:"dance",t:"Dance party",d:"Three songs with the kids. Loud music encouraged.",min:10,days:"any",kids:["little","kids"]},
+ {id:"kidsyoga",t:"Kids' yoga together",d:"A story-style yoga video for you and the kids.",min:15,days:"any",kids:["kids"],q:"kids yoga for families"},
+ {id:"familyvideo",t:"Family workout video",d:"Kid-friendly moves everyone can do together.",min:15,days:"any",kids:["kids","teens"],q:"family workout with kids"},
+ {id:"teenwalk",t:"Walk and talk with your teen",d:"Walking side by side makes for easier conversations.",min:20,days:"any",kids:["teens"]},
+ {id:"dinnerwalk",t:"After-dinner walk",d:"Around the block with the family, a friend or a podcast.",min:15,days:"any"},
+ {id:"tvlaps",t:"Walk during a TV show",d:"Laps around the house or in place. One episode is a walk.",min:20,days:"any"},
+ {id:"indoorwalk",t:"Indoor walking video",d:"A follow-along walk in your living room. Good for bad weather.",min:15,days:"any",q:"indoor walking workout 15 minutes"},
+ {id:"playground",t:"Move while they play",d:"Incline push-ups on a bench and step-ups while they're on the swings.",min:15,days:"off",kids:["little","kids"]},
+ {id:"parkday",t:"Park day",d:"Tag, frisbee or kicking a ball. Chase them around.",min:30,days:"off",kids:["little","kids"]},
+ {id:"familyhike",t:"Family hike",d:"Pick an easy trail and let the kids set the pace.",min:60,days:"off",kids:["kids","teens"]},
+ {id:"bikeride",t:"Family bike ride",d:"Around the neighborhood or on a park path.",min:30,days:"off",kids:["kids","teens"]},
+ {id:"hike",t:"Hike or long walk",d:"With a friend or a podcast, 45 minutes or more.",min:45,days:"off",nokids:1},
+ {id:"mallwalk",t:"Walk the mall or a market",d:"Good when the weather's bad. Do a full loop before you shop.",min:30,days:"off"},
+ {id:"explore",t:"Explore on foot",d:"Walk a new neighborhood, or run errands on foot.",min:30,days:"off",nokids:1},
+ {id:"class",t:"Try a class",d:"Dance, climbing or yoga, ideally with a friend.",min:60,days:"off",nokids:1}
+];
+
 window.SC=window.SC||{};
-Object.assign(window.SC,{EXERCISES:X,WARM});
+Object.assign(window.SC,{EXERCISES:X,WARM,MOVES});
 })();

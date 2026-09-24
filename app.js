@@ -1,6 +1,7 @@
 (function(){
 const E=window.SC.engine;
 const $=id=>document.getElementById(id);
+const PROFILE_VERSION=2;
 
 // ---------- storage (everything stays on this device; the app works without it) ----------
 const store={
@@ -11,11 +12,19 @@ const store={
 function weekKey(){const d=new Date();d.setHours(12);d.setDate(d.getDate()-(d.getDay()+6)%7);return "week-"+d.toISOString().slice(0,10);}
 const loadDone=()=>store.get(weekKey(),[]);
 const saveDone=a=>store.set(weekKey(),a);
+const ymd=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+function dateOf(dayIdx){const d=new Date();d.setHours(12);d.setDate(d.getDate()-(d.getDay()+6)%7+dayIdx);return ymd(d);}
+// one record per calendar day: sleep, hunger and which daily moves were done
+const dayRec=date=>store.get("day-"+date,{});
+const today=()=>ymd(new Date());
+const saveDayRec=(date,r)=>store.set("day-"+date,r);
 
 let profile=store.get("profile",null), adjust=store.get("adjust",E.newAdjust());
 
 // ---------- quiz ----------
 const DAYS3=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const SLOTS=[["morning","Morning"],["midday","Midday"],["evening","Evening"],["late","After bedtime"]];
+const SLOT_NAMES=Object.fromEntries(SLOTS);
 const STEPS=[
  {k:"goals",q:"What do you want to work on?",hint:"Pick up to three.",multi:3,opts:[
    ["strength","Overall strength","Feel stronger in daily life"],["glutes","Glutes + legs","Lower-body strength and shape"],
@@ -23,45 +32,63 @@ const STEPS=[
    ["mobility","Mobility","Move and stretch more freely"],["feet","Feet + balance","Arches, bunions, steadiness"]]},
  {k:"exp",q:"How much strength training have you done?",opts:[
    ["new","New to it","Or it's been a long time"],["some","Some","I've done workouts on and off"],["regular","Regular","I train most weeks"]]},
- {k:"days",q:"Which days can you train?",hint:"Pick 2 to 6 days. Rest days in between help.",week:1},
- {k:"mins",q:"How long per session?",grid:1,opts:[[10,"10 min"],[20,"20 min"],[30,"30 min"],[45,"45 min"]]},
+ {k:"kids",q:"Who's at home with you?",hint:"Pick all that apply. We'll suggest ways to move with them.",multi:9,none:"No kids at home",opts:[
+   ["little","Baby or toddler","Ages 0–3"],["kids","Kids","Ages 4–12"],["teens","Teens","Ages 13+"]]},
+ {k:"work",q:"What does a workday look like?",opts:[
+   ["drive","I drive to a workplace"],["transit","I take transit or walk to work"],["home","I work from home"],
+   ["feet","I'm on my feet all day","Nursing, retail, teaching…"],["parent","I'm a stay-at-home parent"],["none","Not working right now"]]},
+ {k:"walk",q:"How much do you walk on a normal day?",hint:"Counting everything: errands, commute, chasing kids.",opts:[
+   ["low","Under 15 minutes"],["mid","15 to 45 minutes"],["high","Over 45 minutes"]]},
+ {k:"days",q:"Which days can you fit in a workout?",hint:"Pick 2 to 6 days. Rest days in between help.",week:1},
+ {k:"mins",q:"How long is a typical session?",hint:"You can change individual days next.",grid:1,opts:[[10,"10 min"],[20,"20 min"],[30,"30 min"],[45,"45 min"]]},
+ {k:"sched",q:"When can you fit it in?",hint:"Pick a time and length for each day. Leave the time blank if it varies.",sched:1},
  {k:"gear",q:"What do you have?",hint:"We assume a wall, a chair and a towel. Pick any others.",multi:9,opts:[
    ["band","Loop band","Small band that goes around your legs"],["tube","Long band","With handles, or tied to a door or railing"],
    ["db","Dumbbells"],["kb","Kettlebell"],["gym","Gym access","On some or all of your days"]]},
  {k:"gymDays",q:"Which days are gym days?",hint:"The other days use what you have at home.",week:1,when:p=>(p.gear||[]).includes("gym")},
- {k:"limits",q:"Anything we should work around?",hint:"Pick all that apply. We'll leave out exercises that tend to aggravate them.",multi:9,none:1,opts:[
+ {k:"limits",q:"Anything we should work around?",hint:"Pick all that apply. We'll leave out exercises that tend to aggravate them.",multi:9,none:"None of these",opts:[
    ["knee","Knee pain"],["back","Lower-back pain"],["shoulder","Shoulder pain"],["neck","Neck pain or tech neck"],["wrist","Wrist pain"],
    ["core","Postpartum or ab separation","No planks; watch for belly doming"],["feet","Foot pain or bunions"],["floor","Getting down to the floor is hard"]]},
  {k:"caution",q:"Health check",hint:"Has a doctor told you to limit exercise? Or do you have chest pain, dizziness or fainting with activity, a heart condition, or are you pregnant?",opts:[[false,"No"],[true,"Yes to any of these"]]}
 ];
+const BLANK={goals:[],exp:null,kids:null,work:null,walk:null,days:[],mins:null,sched:{},gear:[],gymDays:[],limits:null,caution:null};
 let draft=null, qi=0;
 const activeSteps=()=>STEPS.filter(s=>!s.when||s.when(draft));
 function stepValid(s){
   const v=draft[s.k];
   if(s.k==="days") return v.length>=2&&v.length<=6;
-  if(s.k==="gymDays") return true;
-  if(s.multi) return s.k==="gear"||s.none?true:v.length>0;
+  if(s.k==="gymDays"||s.k==="sched"||s.k==="gear") return true;
+  if(s.none) return Array.isArray(v);            // null until they pick something or "none"
+  if(s.multi) return v.length>0;
   return v!==undefined&&v!==null;
 }
 function welcomeHTML(){
-  return `<section class="card intro"><div class="phase">Welcome</div><h2>A workout plan built around you</h2>
-   <p>Answer a few quick questions. You'll get a weekly plan that fits your time, gear and body, with a timer, form cues and a video for every exercise.</p>
+  return `<section class="card intro"><div class="phase">Welcome</div><h2>Fitness that fits a busy life</h2>
+   <p>Answer a few quick questions. You'll get a weekly plan that fits your schedule, gear and body, with a timer, form cues and a video for every exercise.</p>
+   <p>On busy days, the app suggests easy ways to move more: at work, with the kids, or on the weekend.</p>
    <p>After each workout, tell the app how it felt. Next time the plan adjusts: harder, easier, or with a swap for anything that hurt.</p>
    <div class="warn"><span>This is general fitness guidance, not medical advice.</span><span>Your answers stay on this phone. Nothing is sent anywhere.</span></div>
    <button class="btn" data-q="start">Build my plan</button></section>`;
+}
+function schedHTML(){
+  return `<div class="sched">${[...draft.days].sort((a,b)=>a-b).map(d=>{const sc=draft.sched[d];return `<div class="schedrow" data-sd="${d}">
+    <div class="schedday">${E.DAY_NAMES[d]}</div>
+    <div class="chips">${SLOTS.map(([v,l])=>`<button class="pill" data-slot="${v}" aria-pressed="${sc.slot===v}">${l}</button>`).join("")}</div>
+    <div class="chips">${[10,20,30,45].map(m=>`<button class="pill" data-len="${m}" aria-pressed="${sc.mins===m}">${m} min</button>`).join("")}</div></div>`;}).join("")}</div>`;
 }
 function stepHTML(){
   const steps=activeSteps(), s=steps[qi], v=draft[s.k];
   const bar=`<div class="steps">${steps.map((_,i)=>`<i class="${i<=qi?"on":""}"></i>`).join("")}</div>`;
   let opts;
-  if(s.week){
-    const pool=s.k==="gymDays"?draft.days:[0,1,2,3,4,5,6];
+  if(s.sched) opts=schedHTML();
+  else if(s.week){
+    const pool=s.k==="gymDays"?[...draft.days].sort((a,b)=>a-b):[0,1,2,3,4,5,6];
     opts=`<div class="opts week">${pool.map(d=>`<button class="opt" data-o="${d}" aria-pressed="${v.includes(d)}">${DAYS3[d]}</button>`).join("")}</div>`;
   }else{
     opts=`<div class="opts${s.grid?" grid2":""}">${s.opts.map(([val,label,sub])=>{
-      const on=s.multi?v.includes(val):v===val;
+      const on=s.multi?(v||[]).includes(val):v===val;
       return `<button class="opt" data-o="${val}" aria-pressed="${on}"><span>${label}</span>${sub?`<small>${sub}</small>`:""}</button>`;}).join("")}
-      ${s.none?`<button class="opt" data-o="__none" aria-pressed="${v.length===0}"><span>None of these</span></button>`:""}</div>`;
+      ${s.none?`<button class="opt" data-o="__none" aria-pressed="${Array.isArray(v)&&v.length===0}"><span>${s.none}</span></button>`:""}</div>`;
   }
   const last=qi===steps.length-1;
   return `${bar}<section class="card"><div class="phase">Question ${qi+1} of ${steps.length}</div><h2 class="q">${s.q}</h2>
@@ -82,14 +109,22 @@ function renderSetup(){
   window.scrollTo(0,0);
 }
 function startQuiz(){
-  draft=profile?JSON.parse(JSON.stringify(profile)):{goals:[],exp:null,days:[],mins:null,gear:[],gymDays:[],limits:[],caution:null};
+  draft={...JSON.parse(JSON.stringify(BLANK)),...(profile?JSON.parse(JSON.stringify(profile)):{})};
   qi=0; showCaution=false; renderSetup();
 }
+// Every chosen day gets a schedule entry; the length defaults to the typical session length.
+function syncSched(){
+  const s={};
+  draft.days.forEach(d=>{const o=draft.sched[d]||{};s[d]={slot:o.slot||null,mins:o.mins||draft.mins||30};});
+  draft.sched=s;
+}
 function finishQuiz(){
+  syncSched();
   draft.gymDays=(draft.gear.includes("gym")?draft.gymDays:[]).filter(d=>draft.days.includes(d));
-  const changed=!profile||JSON.stringify(profile)!==JSON.stringify(draft);
-  profile={...draft,v:1}; store.set("profile",profile);
-  if(changed){adjust=E.newAdjust();store.set("adjust",adjust);} // new answers → fresh starting point
+  const planKeys=["goals","exp","days","gear","gymDays","limits","caution"];
+  const planChanged=!profile||planKeys.some(k=>JSON.stringify(profile[k])!==JSON.stringify(draft[k]));
+  profile={...draft,v:PROFILE_VERSION}; store.set("profile",profile);
+  if(planChanged){adjust=E.newAdjust();store.set("adjust",adjust);} // new body/gear answers → fresh starting point
   draft=null; showPlan();
 }
 $("setup").addEventListener("click",e=>{
@@ -100,23 +135,30 @@ $("setup").addEventListener("click",e=>{
   const steps=activeSteps(), s=steps[qi];
   if(act==="back"){
     if(showCaution){showCaution=false;renderSetup();return;}
-    if(qi===0){draft=null; profile?showPlan():renderSetup(); return;}
+    if(qi===0){draft=null; profile&&profile.v===PROFILE_VERSION?showPlan():renderSetup(); return;}
     qi--; renderSetup(); return;
   }
   if(act==="next"){
     if(!stepValid(s))return;
-    if(qi<steps.length-1){qi++;renderSetup();}
+    if(qi<steps.length-1){qi++; if(steps[qi].sched) syncSched(); renderSetup();}
     else if(draft.caution){showCaution=true;renderSetup();}
     else finishQuiz();
     return;
   }
+  const row=b.closest(".schedrow");
+  if(row){
+    const sc=draft.sched[row.dataset.sd];
+    if(b.dataset.slot) sc.slot=sc.slot===b.dataset.slot?null:b.dataset.slot;
+    if(b.dataset.len) sc.mins=+b.dataset.len;
+    renderSetup(); return;
+  }
   if(b.dataset.o===undefined)return;
   const raw=b.dataset.o, src=s.week?null:s.opts.find(o=>String(o[0])===raw), val=s.week?+raw:src?src[0]:raw;
   if(s.week||s.multi){
-    let arr=draft[s.k];
+    let arr=draft[s.k]||[];
     if(raw==="__none") arr=[];
     else if(arr.includes(val)) arr=arr.filter(x=>x!==val);
-    else if(!s.multi||arr.length<s.multi||s.week) arr=[...arr,val];
+    else if(s.week||arr.length<s.multi) arr=[...arr,val];
     if(s.k==="days"&&arr.length>6) return;
     draft[s.k]=arr;
   }else draft[s.k]=val;
@@ -124,7 +166,7 @@ $("setup").addEventListener("click",e=>{
 });
 
 // ---------- plan state ----------
-let week=[], dayIdx=(new Date().getDay()+6)%7, short=false, session=null, cards=[], cur=0;
+let week=[], dayIdx=(new Date().getDay()+6)%7, mode="full", session=null, cards=[], cur=0;
 let sound=store.get("sound",true), voice=store.get("voice",true);
 const track=$("track");
 function sessionOpts(s,mins){return {focus:s.rest?"C":s.focus,variant:s.variant||0,gym:!!s.gym,mins};}
@@ -157,22 +199,45 @@ function cardHTML(c,i){
   }
   return `<section class="card" aria-label="${c.name}"><div class="phase">${c.phase}</div><h2>${c.name}</h2><div class="rx">${c.rx}</div>${cues}${vid}${tool}</section>`;
 }
+const chipRow=(k,val,opts)=>`<div class="chips" data-ck="${k}">${opts.map(([v,l])=>`<button class="pill" data-cv="${v}" aria-pressed="${val===v}">${l}</button>`).join("")}</div>`;
+const SLEEP=[["poor","Poor"],["ok","OK"],["good","Good"]], HUNGER=[["low","Low"],["normal","Normal"],["high","High"]];
+function checkinHTML(date){
+  if(date>today()) return `<p class="hint">Check in on the day.</p>`;
+  const rec=dayRec(date);
+  return `<div class="checkin" data-date="${date}"><div class="ckrow"><span>Sleep last night</span>${chipRow("sleep",rec.sleep,SLEEP)}</div>
+    <div class="ckrow"><span>Hunger today</span>${chipRow("hunger",rec.hunger,HUNGER)}</div></div>`;
+}
 function introHTML(s){
-  const lim=profile.limits||[];
+  const lim=profile.limits||[], rec=dayRec(today());   // you're working out now, so today's sleep counts
   const warns=["Breathe through every rep and hold. Never hold your breath to lift.","Aim for 6–7 out of 10 effort. Stop for sharp pain, dizziness, chest pain or a headache."];
   if(lim.includes("core")) warns.push("Skip anything that makes your belly dome or bulge along the middle.");
   if(profile.caution) warns.push("You told us to be careful. Keep it gentle and follow your doctor's advice.");
-  return `<section class="card intro"><div class="phase">${E.DAY_NAMES[dayIdx]} · ${s.gym?"Gym":"Home"}</div><h2>${session.title}</h2>
+  const where=[E.DAY_NAMES[dayIdx],s.slot?SLOT_NAMES[s.slot]:null,s.gym?"Gym":"Home"].filter(Boolean).join(" · ");
+  const tired=rec.sleep==="poor"&&mode==="full"&&s.mins>10?`<div class="note">Rough night? The 10-minute version still counts. <button class="pill" data-act="short">Switch to 10 min</button></div>`:"";
+  const quiet=s.slot==="late"&&!s.rest?`<p class="hint">Kids asleep? Turn Voice off at the top. The beeps are enough.</p>`:"";
+  return `<section class="card intro"><div class="phase">${where}</div><h2>${session.title}</h2>
    <dl class="meta"><dt>Time</dt><dd>About ${session.estMin} min</dd><dt>Gear</dt><dd>${session.gear.length?session.gear.join(", ").replace(/^./,c=>c.toUpperCase()):"None, just a wall and a chair"}</dd></dl>
+   ${tired}
    <div class="warn">${warns.map(w=>`<span>${w}</span>`).join("")}</div>
-   <p class="hint">Swipe or tap Next to move through. Timed cards move you on automatically when the timer ends.</p>
+   ${quiet}<p class="hint">Swipe or tap Next to move through. Timed cards move you on automatically when the timer ends.</p>
    <button class="btn" data-act="begin">Start workout</button></section>`;
 }
-function restHTML(){
-  return `<section class="card intro"><div class="phase">${E.DAY_NAMES[dayIdx]}</div><h2>Rest day</h2>
-   <p>Rest is when your body adapts. A walk or some easy movement is a good idea.</p>
-   <p class="hint">Want something light? There's a 10-minute core and mobility session.</p>
-   <button class="btn" data-act="short">Open the 10-minute session</button></section>`;
+function movesHTML(){
+  const s=week[dayIdx], date=dateOf(dayIdx), rec=dayRec(date), done=rec.moves||[], future=date>today();
+  const m=E.dailyMoves(profile,dayIdx,date);
+  const got=m.items.filter(x=>done.includes(x.id)).reduce((a,x)=>a+x.min,0);
+  const goal=m.goal?`<div class="goal"><div><b>${Math.min(got,m.goal)} of ${m.goal} min</b> of extra walking and movement</div><div class="bar"><i style="width:${Math.min(100,got/m.goal*100)}%"></i></div><small>Any chunks count. Three 7-minute walks work as well as one long one.</small></div>`
+    :`<p class="hint">${m.onFeet?"Your job keeps you moving, so there's no walking goal on workdays.":"You already walk a lot. These are extras if you want them."}</p>`;
+  const workoutLine=s.rest?`<p class="hint">No workout today. Rest is when your body adapts.</p>`
+    :`<p class="hint">Workout today: ${E.FOCUS[s.focus].title}${s.slot?", "+SLOT_NAMES[s.slot].toLowerCase():""}. <button class="linkbtn" data-act="full">Open it</button></p>`;
+  return `<section class="card intro" id="moveCard"><div class="phase">${E.DAY_NAMES[dayIdx]} · Daily moves</div><h2>Move a little, often</h2>
+   ${workoutLine}${goal}
+   <h3>Ideas for today</h3>
+   <div>${m.items.map(x=>`<div class="moverow"><div><div class="name">${x.t}</div><small>${x.d}</small>
+      ${x.video?`<a class="video" href="${x.video}" target="_blank" rel="noopener">Find a video</a>`:""}</div>
+      <button class="pill" data-move="${x.id}" aria-pressed="${done.includes(x.id)}"${future?" disabled":""}>${done.includes(x.id)?"Done ✓":"+"+x.min+" min"}</button></div>`).join("")}</div>
+   <h3>Daily check-in</h3>${checkinHTML(date)}
+   ${s.rest?`<button class="btn ghost" data-act="short">Want more? Open a 10-minute session</button>`:""}</section>`;
 }
 function endHTML(){
   const seen=new Set(), list=session.exIds.filter(id=>!seen.has(id)&&seen.add(id));
@@ -181,28 +246,30 @@ function endHTML(){
    <h3>Any exercise to change? <span class="hint">(optional)</span></h3>
    <div>${list.map(id=>`<div class="fbrow" data-ex="${id}"><div class="name">${E.BY_ID[id].name}</div><div class="chips">
      <button class="pill" data-v="up" aria-pressed="false">Too easy</button><button class="pill" data-v="down" aria-pressed="false">Too hard</button><button class="pill" data-v="hurt" aria-pressed="false">Caused pain</button></div></div>`).join("")}</div>
+   <h3>Check-in <span class="hint">(optional)</span></h3>${checkinHTML(today())}
    <button class="btn restbtn" data-act="savefb" disabled>Save and mark done</button>
    <p class="fine">Pick how it felt to save. Sharp or lasting pain is worth checking with a physio or doctor.</p></section>`;
 }
 function build(){
   stopTimer();
   const s=week[dayIdx];
-  const fullMins=profile.mins;
-  $("modeRow").hidden=s.rest?!short:fullMins<=10;
-  $("fullBtn").textContent=`Full ${fullMins} min`;
-  if(s.rest&&!short){session=null;cards=[];track.innerHTML=restHTML();}
+  if(s.rest&&mode==="full") mode="move";
+  $("fullBtn").hidden=s.rest; $("shortBtn").hidden=!s.rest&&s.mins<=10;
+  $("fullBtn").textContent=`Workout · ${s.mins||profile.mins} min`;
+  $("shortBtn").textContent=s.rest?"10-min session":"10-min version";
+  if(mode==="move"){session=null;cards=[];track.innerHTML=movesHTML();}
   else{
-    session=E.buildSession(profile,adjust,sessionOpts(s,short?10:fullMins));
+    session=E.buildSession(profile,adjust,sessionOpts(s,mode==="short"?10:s.mins));
     cards=session.cards;
     track.innerHTML=introHTML(s)+cards.map(cardHTML).join("")+endHTML();
   }
-  $("fullBtn").setAttribute("aria-pressed",String(!short));
-  $("shortBtn").setAttribute("aria-pressed",String(short));
+  [["fullBtn","full"],["shortBtn","short"],["moveBtn","move"]].forEach(([id,m])=>$(id).setAttribute("aria-pressed",String(mode===m)));
+  $("modeRow").hidden=false;
   cur=0; track.scrollTo({left:0,behavior:"instant"}); updateNav();
 }
 function showPlan(){
   $("setup").hidden=true; $("app").hidden=false;
-  week=E.buildWeek(profile); short=false;
+  week=E.buildWeek(profile); mode="full";
   renderDays(); build(); syncToggles();
 }
 function total(){return track.children.length}
@@ -286,25 +353,42 @@ function saveFeedback(){
   const before=E.buildSession(profile,adjust,opts), after=E.buildSession(profile,res.adjust,opts);
   const swaps=E.diffSessions(before,after);
   adjust=res.adjust; store.set("adjust",adjust);
-  const hist=store.get("history",[]); hist.push({date:new Date().toISOString().slice(0,10),day:dayIdx,focus:session.focus,mins:session.mins,rating:fb.rating,ex:fb.ex}); store.set("history",hist.slice(-500));
+  const rec=dayRec(today());
+  const hist=store.get("history",[]); hist.push({date:ymd(new Date()),day:dayIdx,focus:session.focus,mins:session.mins,rating:fb.rating,ex:fb.ex,sleep:rec.sleep||null,hunger:rec.hunger||null}); store.set("history",hist.slice(-500));
   const d=loadDone(); if(!d.includes(dayIdx)){d.push(dayIdx);saveDone(d);} renderDays();
   const notes=[...res.notes,...swaps.map(x=>"Swap: "+x)];
   el.innerHTML=`<div class="phase">Saved</div><h2>Nice work.</h2>
    ${notes.length?`<h3>Next time</h3><ul class="notes">${notes.map(n=>`<li>${n}</li>`).join("")}</ul>`:`<p>Your plan stays the same for now. Rate "About right" three sessions in a row and it steps up.</p>`}
    <p class="hint">Drink some water. Your next session is ready when you are.</p>
-   <button class="btn" data-act="reload">Back to the start</button>`;
+   <button class="btn" data-act="gomove">See today's daily moves</button>
+   <button class="btn ghost" data-act="reload">Back to the start</button>`;
 }
 
 // ---------- settings ----------
+function trendsHTML(){
+  const days=[...Array(7)].map((_,i)=>{const d=new Date();d.setHours(12);d.setDate(d.getDate()-i);return dayRec(ymd(d));});
+  const n=(k,v)=>days.filter(r=>r[k]===v).length, logged=days.filter(r=>r.sleep||r.hunger).length;
+  const moves=days.reduce((a,r)=>a+(r.moves||[]).length,0);
+  if(!logged&&!moves) return `<p class="fine">Check in on the Daily moves tab to see your sleep and hunger here.</p>`;
+  const tips=[];
+  if(n("sleep","poor")>=3) tips.push("Sleep has been rough on 3 or more of the last 7 days. On those days, the 10-minute version is a fine choice.");
+  if(n("hunger","high")>=3) tips.push("Hunger has been high on 3 or more of the last 7 days. Regular meals and snacks with some protein help many people. If it's a worry, a doctor or dietitian can advise.");
+  return `<dl class="meta"><dt>Sleep</dt><dd>${n("sleep","good")} good · ${n("sleep","ok")} OK · ${n("sleep","poor")} poor</dd>
+   <dt>Hunger</dt><dd>${n("hunger","low")} low · ${n("hunger","normal")} normal · ${n("hunger","high")} high</dd>
+   <dt>Moves</dt><dd>${moves} daily move${moves===1?"":"s"} done</dd></dl>
+   ${tips.map(t=>`<p class="note">${t}</p>`).join("")}`;
+}
 function settingsHTML(){
   const hist=store.get("history",[]), a=adjust;
   const lvl=a.int===0?"Starting level":a.int>0?`${a.int} step${a.int>1?"s":""} up from where you started`:`${-a.int} step${a.int<-1?"s":""} easier than where you started`;
   const names={strength:"Overall strength",glutes:"Glutes + legs",posture:"Posture",core:"Core",mobility:"Mobility",feet:"Feet + balance"};
+  const sched=week.filter(s=>!s.rest).map(s=>`${DAYS3[s.d]} ${s.slot?SLOT_NAMES[s.slot].toLowerCase()+", ":""}${s.mins} min`).join(" · ");
   return `<section class="card intro"><div class="phase">Your plan</div><h2>Settings</h2>
    <dl class="meta"><dt>Goals</dt><dd>${profile.goals.map(g=>names[g]).join(", ")}</dd>
-   <dt>Days</dt><dd>${profile.days.slice().sort().map(d=>DAYS3[d]).join(", ")} · ${profile.mins} min</dd>
+   <dt>Schedule</dt><dd>${sched}</dd>
    <dt>Level</dt><dd>${lvl}</dd><dt>Removed</dt><dd>${a.ban.length?a.ban.map(id=>E.BY_ID[id].name).join(", "):"Nothing"}</dd>
-   <dt>Logged</dt><dd>${hist.length} session${hist.length===1?"":"s"}</dd></dl>
+   <dt>Logged</dt><dd>${hist.length} workout${hist.length===1?"":"s"}</dd></dl>
+   <h3>Last 7 days</h3>${trendsHTML()}
    <button class="btn" data-act="requiz">Change my answers</button>
    <button class="btn ghost" data-act="resetadj">Undo all feedback changes</button>
    <button class="btn ghost" data-act="close">‹ Back to my plan</button>
@@ -318,9 +402,24 @@ track.addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b)return; unlock();
   if(b.dataset.rate){endCard().querySelectorAll("[data-rate]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));endCard().querySelector('[data-act="savefb"]').disabled=false;return;}
   if(b.dataset.v){const on=b.getAttribute("aria-pressed")==="true";b.parentNode.querySelectorAll(".pill").forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed",String(!on));return;}
+  if(b.dataset.cv){ // sleep / hunger check-in: saved immediately, tap again to clear
+    const k=b.parentNode.dataset.ck, date=b.closest(".checkin").dataset.date, rec=dayRec(date);
+    rec[k]=rec[k]===b.dataset.cv?null:b.dataset.cv; saveDayRec(date,rec);
+    b.parentNode.querySelectorAll(".pill").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.cv===rec[k])));
+    return;
+  }
+  if(b.dataset.move){
+    const date=dateOf(dayIdx); if(date>today()) return;
+    const rec=dayRec(date), m=rec.moves||[];
+    rec.moves=m.includes(b.dataset.move)?m.filter(x=>x!==b.dataset.move):[...m,b.dataset.move]; saveDayRec(date,rec);
+    const left=track.scrollLeft, top=$("moveCard").scrollTop; track.innerHTML=movesHTML(); $("moveCard").scrollTop=top; track.scrollLeft=left;
+    return;
+  }
   const act=b.dataset.act, t=b.closest(".timer"), ci=t?+t.dataset.t:-1;
   if(act==="begin") go(1);
-  else if(act==="short"){short=true;build();}
+  else if(act==="short"){mode="short";build();}
+  else if(act==="full"){mode="full";build();}
+  else if(act==="gomove"){mode="move";build();}
   else if(act==="savefb") saveFeedback();
   else if(act==="reload") build();
   else if(act==="reset") resetCard(ci);
@@ -332,9 +431,10 @@ track.addEventListener("click",e=>{
   else if(act==="resetadj"){if(confirm("Undo every change your feedback has made to the plan?")){adjust=E.newAdjust();store.set("adjust",adjust);openSettings();}}
   else if(act==="close") build();
 });
-$("days").addEventListener("click",e=>{const b=e.target.closest(".day");if(!b)return;dayIdx=+b.dataset.i;short=false;renderDays();build();});
-$("fullBtn").onclick=()=>{short=false;build();};
-$("shortBtn").onclick=()=>{short=true;build();};
+$("days").addEventListener("click",e=>{const b=e.target.closest(".day");if(!b)return;dayIdx=+b.dataset.i;mode="full";renderDays();build();});
+$("fullBtn").onclick=()=>{mode="full";build();};
+$("shortBtn").onclick=()=>{mode="short";build();};
+$("moveBtn").onclick=()=>{mode="move";build();};
 $("settingsBtn").onclick=openSettings;
 $("prevBtn").onclick=()=>go(cur-1);
 $("nextBtn").onclick=()=>{unlock();go(cur+1);};
@@ -344,5 +444,8 @@ $("voiceBtn").onclick=()=>{voice=!voice;store.set("voice",voice);syncToggles();i
 document.addEventListener("keydown",e=>{if($("app").hidden)return;if(e.key==="ArrowRight")go(cur+1);if(e.key==="ArrowLeft")go(cur-1);});
 window.addEventListener("resize",()=>track.scrollTo({left:cur*step(),behavior:"instant"}));
 
-if(profile&&profile.days&&profile.days.length) showPlan(); else renderSetup();
+// People who set up before the lifestyle questions existed start at the first new question; their old answers are prefilled.
+if(profile&&profile.v===PROFILE_VERSION) showPlan();
+else if(profile){startQuiz(); qi=activeSteps().findIndex(s=>!stepValid(s)); if(qi<0)qi=0; renderSetup();}
+else renderSetup();
 })();

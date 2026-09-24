@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Strength Coach">
 <meta name="theme-color" content="#10141C">
-<meta name="description" content="Answer a few questions and get a home workout plan that adapts as you give feedback.">
+<meta name="description" content="A workout plan that fits a busy life, with everyday movement ideas and feedback that adjusts it.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <title>Strength Coach</title>
@@ -49,6 +49,7 @@ header{padding-block:12px 8px;display:grid;gap:10px}
 .toggles{display:flex;gap:6px}
 .pill{font:inherit;font-size:13px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:5px 10px;cursor:pointer}
 .pill[aria-pressed="true"]{color:var(--ink);border-color:var(--accent)}
+.pill[disabled]{opacity:.45;cursor:default}
 .days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .day{font:inherit;background:var(--surface);color:var(--muted);border:1px solid transparent;border-radius:10px;padding:6px 0 5px;cursor:pointer;display:grid;justify-items:center;gap:1px}
 .day b{font-family:var(--display);font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);font-weight:600}
@@ -57,7 +58,7 @@ header{padding-block:12px 8px;display:grid;gap:10px}
 .day[aria-current="true"] b{color:var(--accent)}
 .day.done span::after{content:" ✓";color:var(--rest)}
 .mode{display:flex;gap:6px}
-.mode .pill{flex:1;font-size:14px;padding:7px 10px}
+.mode .pill{flex:1;font-size:14px;padding:7px 6px;white-space:nowrap}
 .track{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;min-height:0;overscroll-behavior-x:contain}
 .track::-webkit-scrollbar{display:none}
 .card{flex:0 0 100%;scroll-snap-align:center;background:var(--surface);border-radius:20px;padding:20px 18px;box-sizing:border-box;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
@@ -118,9 +119,29 @@ footer .btn{flex:0 0 auto;padding:12px 18px;background:var(--surface);color:var(
 .rate .opt{text-align:center;padding:12px 6px}
 .fbrow{display:grid;gap:6px;padding-block:8px;border-top:1px solid var(--line)}
 .fbrow .name{font-size:15px}
-.fbrow .chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
 .fbrow .pill[data-v="hurt"][aria-pressed="true"]{border-color:var(--bad);color:var(--bad)}
 .notes{margin:0;padding-left:1.1em;display:grid;gap:4px}
+.note{margin:0;background:var(--surface2);border-radius:12px;padding:10px 12px;font-size:14px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+
+/* schedule step */
+.sched{display:grid;gap:10px}
+.schedrow{display:grid;gap:6px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.schedday{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:.04em;text-transform:uppercase}
+
+/* check-in + daily moves */
+.checkin{display:grid;gap:8px}
+.ckrow{display:grid;gap:4px;font-size:14px;color:var(--muted)}
+.goal{display:grid;gap:6px;background:var(--surface2);border-radius:12px;padding:12px}
+.goal small{color:var(--muted)}
+.goal .bar i{transition:none}
+.moverow{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;padding-block:10px;border-top:1px solid var(--line)}
+.moverow>div{display:grid;gap:4px}
+.moverow small{color:var(--muted);font-size:14px}
+.moverow .name{font-weight:700}
+.moverow .pill{flex:0 0 auto;white-space:nowrap}
+.moverow .pill[aria-pressed="true"]{color:var(--rest);border-color:var(--rest)}
+.linkbtn{font:inherit;background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer}
 @media (prefers-reduced-motion: reduce){.track{scroll-behavior:auto}.bar i{transition:none}}
 </style>
 </head><body>
@@ -141,6 +162,7 @@ footer .btn{flex:0 0 auto;padding:12px 18px;background:var(--surface);color:var(
     <div class="mode" id="modeRow">
       <button class="pill" id="fullBtn" aria-pressed="true">Full</button>
       <button class="pill" id="shortBtn" aria-pressed="false">10-min version</button>
+      <button class="pill" id="moveBtn" aria-pressed="false">Daily moves</button>
     </div>
   </header>
   <main class="track" id="track" aria-live="polite"></main>
