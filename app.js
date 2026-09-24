@@ -25,6 +25,7 @@ let profile=store.get("profile",null), adjust=store.get("adjust",E.newAdjust());
 const DAYS3=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const SLOTS=[["morning","Morning"],["midday","Midday"],["evening","Evening"],["late","After bedtime"]];
 const SLOT_NAMES=Object.fromEntries(SLOTS);
+const WORKING=["drive","transit","home","feet"];
 const STEPS=[
  {k:"goals",q:"What do you want to work on?",hint:"Pick up to three.",multi:3,opts:[
    ["strength","Overall strength","Feel stronger in daily life"],["glutes","Glutes + legs","Lower-body strength and shape"],
@@ -37,6 +38,7 @@ const STEPS=[
  {k:"work",q:"What does a workday look like?",opts:[
    ["drive","I drive to a workplace"],["transit","I take transit or walk to work"],["home","I work from home"],
    ["feet","I'm on my feet all day","Nursing, retail, teaching…"],["parent","I'm a stay-at-home parent"],["none","Not working right now"]]},
+ {k:"workDays",q:"Which days do you work?",hint:"You'll get workday ideas on these days, and weekend-style ideas on the others.",week:1,when:p=>WORKING.includes(p.work)},
  {k:"walk",q:"How much do you walk on a normal day?",hint:"Counting everything: errands, commute, chasing kids.",opts:[
    ["low","Under 15 minutes"],["mid","15 to 45 minutes"],["high","Over 45 minutes"]]},
  {k:"days",q:"Which days can you fit in a workout?",hint:"Pick 2 to 6 days. Rest days in between help.",week:1},
@@ -51,12 +53,13 @@ const STEPS=[
    ["core","Postpartum or ab separation","No planks; watch for belly doming"],["feet","Foot pain or bunions"],["floor","Getting down to the floor is hard"]]},
  {k:"caution",q:"Health check",hint:"Has a doctor told you to limit exercise? Or do you have chest pain, dizziness or fainting with activity, a heart condition, or are you pregnant?",opts:[[false,"No"],[true,"Yes to any of these"]]}
 ];
-const BLANK={goals:[],exp:null,kids:null,work:null,walk:null,days:[],mins:null,sched:{},gear:[],gymDays:[],limits:null,caution:null};
+const BLANK={goals:[],exp:null,kids:null,work:null,workDays:[0,1,2,3,4],walk:null,days:[],mins:null,sched:{},gear:[],gymDays:[],limits:null,caution:null};
 let draft=null, qi=0;
 const activeSteps=()=>STEPS.filter(s=>!s.when||s.when(draft));
 function stepValid(s){
   const v=draft[s.k];
   if(s.k==="days") return v.length>=2&&v.length<=6;
+  if(s.k==="workDays") return v.length>=1;
   if(s.k==="gymDays"||s.k==="sched"||s.k==="gear") return true;
   if(s.none) return Array.isArray(v);            // null until they pick something or "none"
   if(s.multi) return v.length>0;
@@ -386,14 +389,29 @@ function settingsHTML(){
   return `<section class="card intro"><div class="phase">Your plan</div><h2>Settings</h2>
    <dl class="meta"><dt>Goals</dt><dd>${profile.goals.map(g=>names[g]).join(", ")}</dd>
    <dt>Schedule</dt><dd>${sched}</dd>
+   ${WORKING.includes(profile.work)?`<dt>Work days</dt><dd>${(profile.workDays||[0,1,2,3,4]).slice().sort().map(d=>DAYS3[d]).join(", ")}</dd>`:""}
    <dt>Level</dt><dd>${lvl}</dd><dt>Removed</dt><dd>${a.ban.length?a.ban.map(id=>E.BY_ID[id].name).join(", "):"Nothing"}</dd>
    <dt>Logged</dt><dd>${hist.length} workout${hist.length===1?"":"s"}</dd></dl>
+   <button class="btn" data-act="calendar">Add workouts to my calendar</button>
+   <p class="fine">Adds a weekly repeating event for each workout day, with a reminder 10 minutes before: ${calTimesText()}. You can change the times in your calendar app. Changed your schedule here? Delete the old events, then add them again.</p>
    <h3>Last 7 days</h3>${trendsHTML()}
    <button class="btn" data-act="requiz">Change my answers</button>
    <button class="btn ghost" data-act="resetadj">Undo all feedback changes</button>
    <button class="btn ghost" data-act="close">‹ Back to my plan</button>
    <p class="fine">Everything is stored only on this device. Clearing your browser data or uninstalling removes it.</p>
    <p class="fine">General fitness guidance, not medical advice. Stop if something hurts, and check with a doctor or physio about pain or health conditions.</p></section>`;
+}
+function calTimesText(){
+  const t=([h,m])=>`${h%12||12}${m?":"+String(m).padStart(2,"0"):""} ${h<12?"am":"pm"}`;
+  return SLOTS.map(([k,l])=>`${l.toLowerCase()} ${t(E.SLOT_TIMES[k])}`).join(", ")+`, and ${t(E.DEFAULT_TIME)} for days without a time`;
+}
+function downloadCalendar(){
+  let uid=store.get("uid",null); if(!uid){uid="sc"+Math.random().toString(36).slice(2,10);store.set("uid",uid);}
+  const ics=E.calendarICS(profile,week,{url:location.origin+location.pathname,uid});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([ics],{type:"text/calendar;charset=utf-8"}));
+  a.download="strength-coach-workouts.ics"; document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);
 }
 function openSettings(){stopTimer();$("modeRow").hidden=true;track.innerHTML=settingsHTML();cur=0;track.scrollTo({left:0,behavior:"instant"});updateNav();}
 
@@ -428,6 +446,7 @@ track.addEventListener("click",e=>{
     else startTimer(ci,cards[ci].segs);
   }
   else if(act==="requiz") startQuiz();
+  else if(act==="calendar") downloadCalendar();
   else if(act==="resetadj"){if(confirm("Undo every change your feedback has made to the plan?")){adjust=E.newAdjust();store.set("adjust",adjust);openSettings();}}
   else if(act==="close") build();
 });

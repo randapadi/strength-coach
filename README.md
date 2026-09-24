@@ -21,9 +21,12 @@ A workout app for busy working parents and professionals. It builds a weekly pla
 4. Feedback: "too easy/hard" overall moves reps and holds ±10%; per exercise it swaps to a harder/easier version or changes the dose; "caused pain" removes it. Three "about right" ratings in a row step the plan up.
 
 ## Daily moves
-Every day has a walking goal (20 or 30 min, or none for people who already walk a lot or are on their feet at work) and four ideas from `MOVES` in `data.js`, matched to household (baby/toddler, kids, teens, none), work style and workday vs. weekend. Parents always get kid-friendly ideas. Picks rotate daily. Video ideas link to YouTube searches.
+Every day has a walking goal (20 or 30 min, or none for people who already walk a lot or are on their feet at work) and four ideas from `MOVES` in `data.js`, matched to household (baby/toddler, kids, teens, none), work style and whether it's one of the person's workdays (asked in the quiz; Mon–Fri if unanswered). Parents always get kid-friendly ideas. Picks rotate daily. Video ideas link to YouTube searches.
 
 ## Check-ins
 Sleep and hunger are logged per day (on the Daily moves tab or after a workout), only for today or earlier. After a poor night's sleep, the workout screen offers the 10-minute version. Settings shows 7-day trends.
+
+## Calendar
+Settings → "Add workouts to my calendar" downloads an `.ics` file (built by `calendarICS` in `engine.js`) with a weekly repeating event per training day, a 10-minute reminder, and the day's session length. Slot times: morning 6:30, midday 12:15, evening 18:00, after bedtime 20:30, otherwise 18:00. Event IDs are stable per install.
 
 General fitness guidance, not medical advice.

@@ -196,7 +196,8 @@ const WORKING=["drive","transit","home","feet"];
 function hash(str){let h=2166136261;for(const c of str){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}
 // Suggestions for one day. dateStr (YYYY-MM-DD) makes the picks rotate day to day but stay stable within a day.
 function dailyMoves(p,d,dateStr,count=4){
-  const kids=p.kids||[], off=d>=5||!WORKING.includes(p.work), parent=kids.length>0;
+  const kids=p.kids||[], parent=kids.length>0;
+  const off=!WORKING.includes(p.work)||!(p.workDays||[0,1,2,3,4]).includes(d);   // profiles from before the workdays question: Mon–Fri
   const fits=m=>(m.days==="any"||(m.days==="off")===off)
     &&(!m.work||m.work.includes(p.work))
     &&(!m.kids||m.kids.some(k=>kids.includes(k)))
@@ -212,5 +213,37 @@ function dailyMoves(p,d,dateStr,count=4){
   return {goal,onFeet,items:pick.map(m=>({...m,video:m.q?"https://www.youtube.com/results?search_query="+encodeURIComponent(m.q):null}))};
 }
 
-window.SC.engine={dailyMoves,FOCUS,DAY_NAMES,GEAR_NAMES,BY_ID,newAdjust,buildWeek,buildSession,applyFeedback,diffSessions,focusOrder};
+// ---------- calendar file ----------
+// Weekly repeating events for the training days, as an .ics file any calendar app can import.
+// Times are "floating" (no time zone), so they stay at the same local time wherever the phone is.
+const SLOT_TIMES={morning:[6,30],midday:[12,15],evening:[18,0],late:[20,30]}, DEFAULT_TIME=[18,0];
+const ICS_DAYS=["MO","TU","WE","TH","FR","SA","SU"];
+function calendarICS(p,week,{url,now=new Date(),uid="sc"}={}){   // uid: stable per install, so re-adding can update events
+  const pad=n=>String(n).padStart(2,"0");
+  const stamp=now.toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");
+  const esc=t=>String(t).replace(/\\/g,"\\\\").replace(/([,;])/g,"\\$1").replace(/\n/g,"\\n");
+  const fold=l=>{const out=[];while(l.length>74){out.push(l.slice(0,74));l=" "+l.slice(74);}out.push(l);return out.join("\r\n");};
+  const lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Strength Coach//Workout schedule//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH"];
+  for(const s of week.filter(s=>!s.rest)){
+    const [h,m]=SLOT_TIMES[s.slot]||DEFAULT_TIME;
+    const first=new Date(now); first.setHours(12,0,0,0);
+    first.setDate(first.getDate()+((s.d-(first.getDay()+6)%7)+7)%7);   // next occurrence of this weekday, today included
+    const title=`Workout: ${FOCUS[s.focus].title} (${s.mins} min)`;
+    lines.push("BEGIN:VEVENT",
+      `UID:${uid}-${ICS_DAYS[s.d].toLowerCase()}@strength-coach`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART:${first.getFullYear()}${pad(first.getMonth()+1)}${pad(first.getDate())}T${pad(h)}${pad(m)}00`,
+      `DURATION:PT${s.mins}M`,
+      `RRULE:FREQ=WEEKLY;BYDAY=${ICS_DAYS[s.d]}`,
+      `SUMMARY:${esc(title)}`,
+      `DESCRIPTION:${esc("Open Strength Coach to start."+(url?" "+url:""))}`,
+      ...(url?[`URL:${url}`]:[]),
+      "BEGIN:VALARM","ACTION:DISPLAY",`DESCRIPTION:${esc(title)}`,"TRIGGER:-PT10M","END:VALARM",
+      "END:VEVENT");
+  }
+  lines.push("END:VCALENDAR");
+  return lines.map(fold).join("\r\n")+"\r\n";
+}
+
+window.SC.engine={dailyMoves,calendarICS,SLOT_TIMES,DEFAULT_TIME,FOCUS,DAY_NAMES,GEAR_NAMES,BY_ID,newAdjust,buildWeek,buildSession,applyFeedback,diffSessions,focusOrder};
 })();
